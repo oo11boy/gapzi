@@ -8,7 +8,7 @@ interface User {
   name: string;
   email: string;
   room_code?: string;
-  newMessageCount?: number; // تعداد پیام‌های خوانده نشده
+  newMessageCount?: number;
 }
 
 interface UserListProps {
@@ -19,7 +19,6 @@ interface UserListProps {
 }
 
 export default function UserList({ users, selectedUser, setSelectedUser, loadMessages }: UserListProps) {
-  // Sort by number of unread messages and name
   const sortedUsers = [...users].sort((a, b) => {
     const aCount = a.newMessageCount || 0;
     const bCount = b.newMessageCount || 0;
@@ -33,13 +32,13 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
       animate={{ opacity: 1, x: 0 }}
       className="lg:col-span-1 space-y-6 w-3/12 max-lg:w-full"
     >
-      <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg rounded-2xl p-2 sm:p-2 shadow-xl border border-white/20 dark:border-gray-700/30 max-w-full">
+      <div className="bg-white/70 dark:bg-gray-850/80 backdrop-blur-lg rounded-2xl p-2 sm:p-2 shadow-xl border border-white/20 dark:border-gray-700/30 max-w-full">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-           <h2 className="font-bold text-lg sm:text-xl bg-linear-to-r flex items-center gap-2 from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-          <UserCircleIcon className="w-6 h-6 text-[#00977F]" />
-       کاربران
-        </h2>
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-sm sm:text-base font-medium bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+          <h2 className="font-bold text-lg sm:text-xl bg-linear-to-r flex items-center gap-2 from-emerald-600 to-teal-600 dark:from-emerald-500 dark:to-teal-500 bg-clip-text text-transparent">
+            <UserCircleIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            کاربران
+          </h2>
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-sm sm:text-base font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
             {users.length}
           </span>
         </div>
@@ -49,7 +48,7 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
               <div className="mx-auto w-16 h-16 sm:w-20 sm:h-20 bg-linear-to-br from-gray-200/50 to-gray-300/50 dark:from-gray-700/50 dark:to-gray-600/50 rounded-full flex items-center justify-center mb-4">
                 <span className="text-2xl sm:text-3xl">👤</span>
               </div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base font-medium">
+              <p className="text-gray-500 dark:text-gray-300 text-sm sm:text-base font-medium">
                 کاربری وجود ندارد
               </p>
             </div>
@@ -68,8 +67,8 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
                 className={classNames(
                   'group relative p-3 sm:p-4 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden flex justify-between items-center',
                   selectedUser?.session_id === user.session_id
-                    ? 'bg-linear-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 shadow-lg shadow-emerald-500/10'
-                    : 'bg-white/50 dark:bg-gray-700/50 hover:bg-white/70 dark:hover:bg-gray-700/70 border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md'
+                    ? 'bg-linear-to-r from-emerald-500/20 to-teal-500/20 dark:from-emerald-600/30 dark:to-teal-600/30 border border-emerald-500/30 shadow-lg dark:shadow-emerald-400/5'
+                    : 'bg-white/50 dark:bg-gray-800/60 hover:bg-white/70 dark:hover:bg-gray-800/70 border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md'
                 )}
               >
                 <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
@@ -77,23 +76,23 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
                     className={classNames(
                       'relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden shadow-md flex items-center justify-center',
                       selectedUser?.session_id === user.session_id
-                        ? 'bg-linear-to-r from-emerald-500 to-teal-500'
-                        : 'bg-linear-to-r from-indigo-500 to-purple-600'
+                        ? 'bg-linear-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400'
+                        : 'bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500'
                     )}
                   >
-                    <span className="text-white font-bold text-sm sm:text-base">
+                    <span className="text-white dark:text-gray-100 font-bold text-sm sm:text-base">
                       {user.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="ml-3 rtl:ml-0 rtl:mr-3 flex-1 min-w-0">
-                    <p className="font-semibold text-sm sm:text-base truncate">{user.name}</p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate max-w-[120px] sm:max-w-40">
+                    <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">{user.name}</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-300 truncate max-w-[120px] sm:max-w-40">
                       {user.email}
                     </p>
                   </div>
                 </div>
-                {user.newMessageCount!=undefined && user.newMessageCount > 0 && (
-                  <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold bg-red-500 text-white animate-pulse">
+                {user.newMessageCount != undefined && user.newMessageCount > 0 && (
+                  <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold bg-rose-500 dark:bg-rose-400 text-white animate-pulse">
                     {user.newMessageCount}
                   </span>
                 )}

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { classNames } from './utils/classNames';
 
@@ -8,7 +8,7 @@ interface User {
   name: string;
   email: string;
   room_code?: string;
-  newMessageCount?: number; // Changed from hasNewMessage to match UserList.tsx
+  newMessageCount?: number;
 }
 
 interface Message {
@@ -27,7 +27,6 @@ interface ChatAreaProps {
   typingUsers: string[];
   sendMessage: () => void;
   handleTyping: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>; // Allow null
   darkMode: boolean;
 }
 
@@ -39,15 +38,21 @@ export default function ChatArea({
   typingUsers,
   sendMessage,
   handleTyping,
-  messagesEndRef,
   darkMode,
 }: ChatAreaProps) {
-  // Scroll to the last message on mount and when messages change
-  useEffect(() => {
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // تابع اسکرول نرم با جاوااسکریپت
+  const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, messagesEndRef]);
+  };
+
+  // اسکرول به پایین هنگام mount یا تغییر messages
+  useEffect(() => {
+    setTimeout(() => scrollToBottom(), 50);
+  }, [messages]);
 
   return (
     <motion.div
@@ -72,11 +77,16 @@ export default function ChatArea({
               )}
             >
               <div className="relative w-10 h-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center">
-                <span className="text-white font-medium text-sm">{selectedUser.name.charAt(0).toUpperCase()}</span>
+                <span className="text-white font-medium text-sm">
+                  {selectedUser.name.charAt(0).toUpperCase()}
+                </span>
               </div>
               <div className="flex-1">
                 <h3
-                  className={classNames('font-semibold text-base truncate', darkMode ? 'text-gray-200' : 'text-gray-900')}
+                  className={classNames(
+                    'font-semibold text-base truncate',
+                    darkMode ? 'text-gray-200' : 'text-gray-900'
+                  )}
                 >
                   {selectedUser.name}
                 </h3>
@@ -96,10 +106,20 @@ export default function ChatArea({
                     <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
                       <span className="text-2xl">💬</span>
                     </div>
-                    <h3 className={classNames('text-base font-medium', darkMode ? 'text-gray-300' : 'text-gray-600')}>
+                    <h3
+                      className={classNames(
+                        'text-base font-medium',
+                        darkMode ? 'text-gray-300' : 'text-gray-600'
+                      )}
+                    >
                       چت آماده است!
                     </h3>
-                    <p className={classNames('text-sm', darkMode ? 'text-gray-400' : 'text-gray-500')}>
+                    <p
+                      className={classNames(
+                        'text-sm',
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      )}
+                    >
                       اولین پیام خود را ارسال کنید
                     </p>
                   </motion.div>
@@ -117,34 +137,18 @@ export default function ChatArea({
                           isSender
                             ? 'self-end rounded-br-none shadow-md bg-linear-to-r from-blue-400 to-blue-500 text-white'
                             : darkMode
-                              ? 'self-start rounded-bl-none shadow-md bg-gray-800 text-gray-200'
-                              : 'self-start rounded-bl-none shadow-md bg-gray-100 text-gray-900'
+                            ? 'self-start rounded-bl-none shadow-md bg-gray-800 text-gray-200'
+                            : 'self-start rounded-bl-none shadow-md bg-gray-100 text-gray-900'
                         )}
                       >
                         <p className="text-sm leading-relaxed">{msg.message}</p>
                         <div className="flex justify-end items-center mt-1 space-x-1 rtl:space-x-reverse">
                           <span className="text-[10px] opacity-70">
-                            {new Date(msg.timestamp).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(msg.timestamp).toLocaleTimeString('fa-IR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
-                          {isSender && msg.status && (
-                            <span className="flex items-center">
-                              {msg.status === 'sent' && (
-                                <svg className="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                              {msg.status === 'delivered' && (
-                                <svg className="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 13l4 4" />
-                                </svg>
-                              )}
-                              {msg.status === 'read' && (
-                                <svg className="w-3 h-3 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 13l4 4" />
-                                </svg>
-                              )}
-                            </span>
-                          )}
                         </div>
                       </motion.div>
                     );
@@ -169,7 +173,12 @@ export default function ChatArea({
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                    <span className={classNames('text-xs', darkMode ? 'text-gray-300' : 'text-gray-600')}>
+                    <span
+                      className={classNames(
+                        'text-xs',
+                        darkMode ? 'text-gray-300' : 'text-gray-600'
+                      )}
+                    >
                       {typingUsers.join(', ')} در حال تایپ...
                     </span>
                   </motion.div>

@@ -74,23 +74,28 @@ const createRoom = async () => {
     });
     const data = await res.json();
 
-  if (res.ok) {
-  const newRoom = { ...data, embed_code: data.embedCode };
+    if (res.ok) {
+      // اگر API embedCode نداد، خودمان تولید می‌کنیم
+      const embedCode = data.embedCode || `<script src="http://localhost:3000/widget.js?room=${data.room_code}"></script>`;
 
-  // اضافه کردن اتاق به لیست و آپدیت selectedRoom
-  setRooms((prev) => [...prev, newRoom]);
-  setSelectedRoom(newRoom);
-  sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
+      const newRoom = {
+        ...data,
+        embed_code: embedCode,
+      };
 
-  // بارگذاری کاربران
-  if (newRoom.room_code) await loadUsers(newRoom.room_code);
+      // اضافه کردن اتاق به لیست و آپدیت selectedRoom
+      setRooms((prev) => [...prev, newRoom]);
+      setSelectedRoom(newRoom);
+      sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
 
-  setShowCreateRoom(false);
-  setSiteUrl('');
-  setEmbedCode(data.embedCode);
-  setShowEmbedModal(true);
-}
- else {
+      // بارگذاری کاربران
+      if (newRoom.room_code) await loadUsers(newRoom.room_code);
+
+      setShowCreateRoom(false);
+      setSiteUrl('');
+      setEmbedCode(embedCode);
+      setShowEmbedModal(true); // modal باز شود
+    } else {
       setError(data.error || 'ایجاد اتاق موفقیت‌آمیز نبود');
     }
   } catch (err) {
@@ -100,6 +105,7 @@ const createRoom = async () => {
     setLoading(false);
   }
 };
+
 
 
   useEffect(() => {
@@ -112,47 +118,54 @@ const createRoom = async () => {
   }, [messages]);
 
   useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch('/api/rooms', { credentials: 'include' });
-        const data = await res.json();
-        console.log('Fetched rooms:', data);
-        setRooms(data);
+ const fetchRooms = async () => {
+  try {
+    setLoading(true);
+    const res = await fetch('/api/rooms', { credentials: 'include' });
+    const data = await res.json();
 
-        if (data.length === 0) {
-          setShowCreateRoom(true);
-          setLoading(false);
-          return;
-        }
+    // اصلاح embed_code برای هر اتاق
+    const roomsWithEmbed = data.map((room: any) => ({
+      ...room,
+      embed_code:
+        room.embed_code ||
+        room.embedCode ||
+        `<script src="http:///widget.js?room=${room.room_code}"></script>`,
+    }));
 
-        const savedRoom = sessionStorage.getItem('selectedRoom');
-        let roomToSelect: Room | null = null;
+    setRooms(roomsWithEmbed);
 
-        if (savedRoom) {
-          const parsedRoom = JSON.parse(savedRoom);
-          const foundRoom = data.find((room: Room) => room.room_code === parsedRoom.room_code);
-          if (foundRoom) {
-            roomToSelect = foundRoom;
-          }
-        }
+    if (roomsWithEmbed.length === 0) {
+      setShowCreateRoom(true);
+      setLoading(false);
+      return;
+    }
 
-        if (!roomToSelect) {
-          roomToSelect = data[data.length - 1];
-        }
+    const savedRoom = sessionStorage.getItem('selectedRoom');
+    let roomToSelect: Room | null = null;
 
-        setSelectedRoom(roomToSelect);
-        sessionStorage.setItem('selectedRoom', JSON.stringify(roomToSelect));
-        console.log('Selected room:', roomToSelect);
-        if (roomToSelect?.room_code) {
-          await loadUsers(roomToSelect.room_code);
-        }
-      } catch (error) {
-        setError('بارگذاری اتاق‌ها موفقیت‌آمیز نبود');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (savedRoom) {
+      const parsedRoom = JSON.parse(savedRoom);
+      const foundRoom = roomsWithEmbed.find(
+        (room: Room) => room.room_code === parsedRoom.room_code
+      );
+      if (foundRoom) roomToSelect = foundRoom;
+    }
+
+    if (!roomToSelect) roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
+
+    setSelectedRoom(roomToSelect);
+    sessionStorage.setItem('selectedRoom', JSON.stringify(roomToSelect));
+
+    if (roomToSelect?.room_code) {
+      await loadUsers(roomToSelect.room_code);
+    }
+  } catch (error) {
+    setError('بارگذاری اتاق‌ها موفقیت‌آمیز نبود');
+  } finally {
+    setLoading(false);
+  }
+};
 
     fetchRooms();
   }, []);
@@ -342,7 +355,7 @@ useEffect(() => {
             typingUsers={typingUsers}
             sendMessage={sendMessage}
             handleTyping={handleTyping}
-            messagesEndRef={messagesEndRef}
+          
             darkMode={darkMode}
           />
         </div>
