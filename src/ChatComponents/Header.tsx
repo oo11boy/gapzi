@@ -1,98 +1,165 @@
 'use client';
-import { Switch } from '@headlessui/react';
-import { BellIcon, SunIcon, MoonIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { PlusIcon, Bars3Icon, XMarkIcon, HomeIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Switch } from '@headlessui/react';
 import { classNames } from './utils/classNames';
 
-interface HeaderProps {
+interface SidebarProps {
+  setShowCreateRoom: (val: boolean) => void;
+  setShowSelectSiteModal: (val: boolean) => void;
   darkMode: boolean;
   setDarkMode: (value: boolean) => void;
-  newMessageAlert: boolean;
-  setShowSelectSiteModal: (value: boolean) => void;
-  setShowCreateRoom: (value: boolean) => void;
 }
 
-export default function Header({ darkMode, setDarkMode, newMessageAlert, setShowSelectSiteModal, setShowCreateRoom }: HeaderProps) {
+export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setShowSelectSiteModal }: SidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const buttons = [
+    {
+      label: 'انتخاب سایت',
+      icon: <HomeIcon className="w-5 h-5" />,
+      onClick: () => setShowSelectSiteModal(true),
+      bg: 'bg-emerald-500 hover:bg-emerald-600',
+    },
+    {
+      label: 'ایجاد چت',
+      icon: <PlusIcon className="w-5 h-5" />,
+      onClick: () => setShowCreateRoom(true),
+      bg: 'bg-indigo-500 hover:bg-indigo-600',
+    },
+  ];
+
   return (
-    <div className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-white/20 dark:border-gray-700/50">
-      <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4">
-            <div className="p-2 bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-              <span className="text-white font-bold text-2xl">💬</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                داشبورد چت زنده
-              </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">پنل مدیریت پیشرفته</p>
-            </div>
+    <>
+
+
+      <div className=" flex w-full items-center justify-between p-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+          <div className="p-2 bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg">
+            <span className="text-white font-bold text-2xl">💬</span>
           </div>
+          گپ زی
+        </h2>
 
-          <div className="flex items-center space-x-4">
-            <AnimatePresence>
-              {newMessageAlert && (
-                <motion.div
-                  initial={{ scale: 0, y: -10 }}
-                  animate={{ scale: 1, y: 0 }}
-                  exit={{ scale: 0, y: -10 }}
-                  className="relative group"
-                >
-                  <div className="p-2 bg-red-500/20 rounded-full backdrop-blur-sm border border-red-500/30">
-                    <BellIcon className="w-5 h-5 text-red-400 animate-pulse" />
-                  </div>
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.9, y: -8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    className="absolute -top-10 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap"
-                  >
-                    پیام جدید
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button
-              onClick={() => setShowSelectSiteModal(true)}
-              className="group flex items-center space-x-2 space-x-reverse px-4 py-2 bg-linear-to-r from-emerald-500 to-teal-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+        <div className="flex items-center gap-2">
+          {/* Dark Mode Switch */}
+          <Switch
+            checked={darkMode}
+            onChange={setDarkMode}
+            className={classNames(
+              darkMode
+                ? 'bg-linear-to-r from-gray-800 via-gray-700 to-gray-600'
+                : 'bg-linear-to-r from-yellow-400 via-orange-400 to-red-400',
+              'relative inline-flex h-8 w-16 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-1 hover:brightness-110'
+            )}
+          >
+            <span className="sr-only">تغییر حالت تاریک</span>
+            <motion.div
+              layout
+              transition={{ type: 'spring', stiffness: 700, damping: 25 }}
+              className="absolute top-1 left-1 h-6 w-6 rounded-full flex items-center justify-center shadow-md
+                hover:scale-110 hover:shadow-lg transition-transform duration-200
+                bg-linear-to-tr from-gray-100 via-gray-200 to-gray-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700"
+              style={{
+                transform: darkMode ? 'translateX(100%) translateX(-0.25rem)' : 'translateX(0)',
+              }}
             >
-              <span>انتخاب سایت</span>
-            </button>
-
-            <button
-              onClick={() => setShowCreateRoom(true)}
-              className="group flex items-center space-x-2 space-x-reverse px-4 py-2 bg-linear-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-            >
-              <PlusIcon className="w-4 h-4" />
-              <span>ایجاد چت</span>
-            </button>
-
-            <Switch 
-              checked={darkMode} 
-              onChange={setDarkMode}
-              className={classNames(
-                'relative inline-flex h-10 w-20 items-center rounded-full transition-colors focus:outline-none',
-                darkMode ? 'bg-linear-to-r from-gray-700 to-gray-800' : 'bg-linear-to-r from-gray-200 to-gray-300'
-              )}
-            >
-              <span className="sr-only">تغییر حالت تاریک</span>
-              <motion.span 
-                layout 
-                className={classNames(
-                  'mx-0.5 h-9 w-9 rounded-full bg-linear-to-r from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg transition-all duration-300',
-                  darkMode ? 'translate-x-10' : 'translate-x-1'
-                )}
-              >
+              <motion.div
+                className={`absolute inset-0 rounded-full ${darkMode ? 'bg-gray-900/40 blur-sm' : 'bg-yellow-500/30 blur-sm'}`}
+                animate={{ opacity: darkMode ? 0.3 : 0.4 }}
+              />
+              <AnimatePresence mode="wait">
                 {darkMode ? (
-                  <MoonIcon className="w-5 h-5 text-gray-900" />
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                    className="relative text-yellow-300"
+                  >
+                    <MoonIcon className="w-4 h-4" />
+                  </motion.div>
                 ) : (
-                  <SunIcon className="w-5 h-5 text-yellow-500" />
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                    className="relative text-white"
+                  >
+                    <SunIcon className="w-4 h-4" />
+                  </motion.div>
                 )}
-              </motion.span>
-            </Switch>
-          </div>
+              </AnimatePresence>
+            </motion.div>
+          </Switch>
+
+          {/* Toggle Mobile Menu */}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+          >
+            {mobileOpen ? (
+              <XMarkIcon className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            ) : (
+              <Bars3Icon className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            )}
+          </button>
         </div>
       </div>
-    </div>
+
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-40"
+              onClick={() => setMobileOpen(false)}
+            />
+
+            {/* Sidebar */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-xl z-50 p-4 flex flex-col space-y-4"
+            >
+              {/* دکمه بستن */}
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="self-end p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                <XMarkIcon className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+              </button>
+
+              {/* دکمه‌ها */}
+              {buttons.map((btn) => (
+                <motion.button
+                  key={btn.label}
+                  onClick={() => {
+                    btn.onClick();
+                    setMobileOpen(false);
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`${btn.bg} text-white py-2 rounded-xl shadow w-full flex items-center justify-center space-x-2`}
+                >
+                  {btn.icon}
+                  <span>{btn.label}</span>
+                </motion.button>
+              ))}
+
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

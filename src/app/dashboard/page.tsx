@@ -14,6 +14,7 @@ import io, { Socket } from 'socket.io-client';
 interface Room {
   room_code: string;
   site_url: string;
+  embed_code?: string;
 }
 
 interface User {
@@ -54,6 +55,15 @@ export default function Dashboard() {
   const selectedUserRef = useRef<User | null>(null);
 
   const createRoom = async () => {
+    if (!siteUrl) {
+      setError('لطفاً آدرس وب‌سایت را وارد کنید');
+      return;
+    }
+    if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl)) {
+      setError('لطفاً یک URL معتبر وارد کنید (مانند https://example.com)');
+      return;
+    }
+
     try {
       const res = await fetch('/api/rooms', {
         method: 'POST',
@@ -62,21 +72,20 @@ export default function Dashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        setRooms((prev) => [...prev, data]);
-        setSelectedRoom(data);
-        sessionStorage.setItem('selectedRoom', JSON.stringify(data));
+        const newRoom = { ...data, embed_code: data.embedCode };
+        setRooms((prev) => [...prev, newRoom]);
+        setSelectedRoom(newRoom);
+        sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
         setShowCreateRoom(false);
         setSiteUrl('');
-        setEmbedCode(
-          `<script src="http://localhost:3000/socket.io/socket.io.js"></script>\n<script>\n  // Embed code for room: ${data.room_code}\n</script>`
-        );
+        setEmbedCode(data.embedCode);
         setShowEmbedModal(true);
-        loadUsers(data.room_code);
+        loadUsers(data.roomCode);
       } else {
         setError(data.error || 'ایجاد اتاق موفقیت‌آمیز نبود');
       }
     } catch {
-      setError('ایجاد اتاق موفقیت‌آمیز نبود');
+      setError('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
     }
   };
 
@@ -203,14 +212,12 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(Array.isArray(data) ? data : []);
 
-      // علامت‌گذاری پیام‌ها به‌عنوان خوانده شده
       await fetch('/api/messages/mark-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomCode, sessionId }),
       });
 
-      // به‌روزرسانی newMessageCount در کلاینت
       setUsers((prev) =>
         prev.map((u) =>
           u.session_id === sessionId ? { ...u, newMessageCount: 0 } : u
@@ -260,16 +267,11 @@ export default function Dashboard() {
       )}
       dir="rtl"
     >
-      <Header
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        newMessageAlert={newMessageAlert}
-        setShowSelectSiteModal={setShowSelectSiteModal}
-        setShowCreateRoom={setShowCreateRoom}
-      />
+      <Header setDarkMode={setDarkMode} darkMode={darkMode} setShowCreateRoom={setShowCreateRoom} setShowSelectSiteModal={setShowSelectSiteModal} />
+
       <ErrorAlert error={error} setError={setError} />
       <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className="flex justify-between items-start gap-4 max-lg:flex-col">
           <UserList
             users={users}
             selectedUser={selectedUser}
@@ -308,17 +310,17 @@ export default function Dashboard() {
         setSiteUrl={setSiteUrl}
         createRoom={createRoom}
       />
-<SelectSiteModal
-  showSelectSiteModal={showSelectSiteModal}
-  setShowSelectSiteModal={setShowSelectSiteModal}
-  rooms={rooms}
-  selectedRoom={selectedRoom}
-  setSelectedRoom={setSelectedRoom}
-  setSelectedUser={setSelectedUser}
-  setMessages={setMessages}
-  loadUsers={loadUsers}
-  darkMode={darkMode} 
-/>
+      <SelectSiteModal
+        showSelectSiteModal={showSelectSiteModal}
+        setShowSelectSiteModal={setShowSelectSiteModal}
+        rooms={rooms}
+        selectedRoom={selectedRoom}
+        setSelectedRoom={setSelectedRoom}
+        setSelectedUser={setSelectedUser}
+        setMessages={setMessages}
+        loadUsers={loadUsers}
+        darkMode={darkMode}
+      />
       <EmbedCodeModal
         showEmbedModal={showEmbedModal}
         setShowEmbedModal={setShowEmbedModal}

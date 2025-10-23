@@ -1,6 +1,7 @@
 'use client';
 import { motion } from 'framer-motion';
 import { classNames } from './utils/classNames';
+import { UserCircleIcon } from '@heroicons/react/24/outline';
 
 interface User {
   session_id: string;
@@ -30,13 +31,14 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="lg:col-span-1 space-y-6"
+      className="lg:col-span-1 space-y-6 w-3/12 max-lg:w-full"
     >
       <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg rounded-2xl p-2 sm:p-2 shadow-xl border border-white/20 dark:border-gray-700/30 max-w-full">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="font-bold text-lg sm:text-xl bg-linear-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-            کاربران
-          </h2>
+           <h2 className="font-bold text-lg sm:text-xl bg-linear-to-r flex items-center gap-2 from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+          <UserCircleIcon className="w-6 h-6 text-[#00977F]" />
+       کاربران
+        </h2>
           <span className="inline-flex items-center px-2 py-1 rounded-full text-sm sm:text-base font-medium bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
             {users.length}
           </span>
