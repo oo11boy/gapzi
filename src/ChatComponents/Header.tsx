@@ -8,11 +8,12 @@ import { classNames } from './utils/classNames';
 interface SidebarProps {
   setShowCreateRoom: (val: boolean) => void;
   setShowSelectSiteModal: (val: boolean) => void;
+  setShowSettingsModal: (val: boolean) => void;
   darkMode: boolean;
   setDarkMode: (value: boolean) => void;
 }
 
-export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setShowSelectSiteModal }: SidebarProps) {
+export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setShowSelectSiteModal ,setShowSettingsModal}: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const buttons = [
@@ -28,6 +29,13 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
       onClick: () => setShowCreateRoom(true),
       bg: 'bg-indigo-500 hover:bg-indigo-600',
     },
+    {
+  label: 'تنظیمات',
+  icon: <Bars3Icon className="w-5 h-5" />,
+  onClick: () => setShowSettingsModal(true),
+  bg: 'bg-gray-500 hover:bg-gray-600',
+},
+
   ];
 
   return (
@@ -97,7 +105,6 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
             </motion.div>
           </Switch>
 
-          {/* Toggle Mobile Menu */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"

@@ -6,6 +6,7 @@ import ErrorAlert from '@/ChatComponents/ErrorAlert';
 import Header from '@/ChatComponents/Header';
 import MobileChatModal from '@/ChatComponents/MobileChatModal';
 import SelectSiteModal from '@/ChatComponents/SelectSiteModal';
+import SettingsModal from '@/ChatComponents/SettingsModal';
 import UserList from '@/ChatComponents/UserList';
 import { classNames } from '@/ChatComponents/utils/classNames';
 import { useState, useEffect, useRef } from 'react';
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
+const [showSettingsModal, setShowSettingsModal] = useState(false);
 
 const createRoom = async () => {
   if (!siteUrl) {
@@ -336,7 +338,7 @@ useEffect(() => {
       )}
       dir="rtl"
     >
-      <Header setDarkMode={setDarkMode} darkMode={darkMode} setShowCreateRoom={setShowCreateRoom} setShowSelectSiteModal={setShowSelectSiteModal} />
+      <Header setShowSettingsModal={setShowSettingsModal} setDarkMode={setDarkMode} darkMode={darkMode} setShowCreateRoom={setShowCreateRoom} setShowSelectSiteModal={setShowSelectSiteModal} />
 
       <ErrorAlert error={error} setError={setError} />
       <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -395,6 +397,13 @@ useEffect(() => {
         setShowEmbedModal={setShowEmbedModal}
         embedCode={embedCode}
       />
+      <SettingsModal
+  showSettingsModal={showSettingsModal}
+  setShowSettingsModal={setShowSettingsModal}
+  darkMode={darkMode}
+  setDarkMode={setDarkMode}
+/>
+
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
