@@ -18,6 +18,9 @@
     localStorage.setItem(sessionKey, sessionId);
   }
 
+  // متغیر برای ردیابی تعداد پیام‌های خوانده‌نشده
+  let unreadCount = parseInt(localStorage.getItem(`unread_count_${room}`) || '0');
+
   // استایل‌های کلی
   const style = document.createElement('style');
   style.textContent = `
@@ -41,6 +44,7 @@
       cursor: pointer; 
       box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
       transition: transform 0.3s ease, background 0.3s ease, opacity 0.3s ease; 
+      position: relative;
     }
     #chat-button:hover { 
       transform: scale(1.1); 
@@ -54,6 +58,26 @@
       width: 28px; 
       height: 28px; 
       fill: white; 
+    }
+    #chat-button .badge {
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      background: #ff4444;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      display: none;
+    }
+    #chat-button .badge.visible {
+      display: flex;
     }
     #chat-container { 
       width: 360px; 
@@ -204,6 +228,7 @@
   chatWidget.innerHTML = `
     <div id="chat-button">
       <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+      <span id="unread-count" class="badge">0</span>
     </div>
     <div id="chat-container">
       <div id="chat-header">
@@ -223,12 +248,26 @@
   const chatContainer = document.getElementById('chat-container');
   const closeChat = document.getElementById('close-chat');
 
-  // باز و بسته کردن ویجت
+  // تابع برای به‌روزرسانی نشانگر تعداد پیام‌های خوانده‌نشده
+  function updateUnreadBadge() {
+    const badge = document.getElementById('unread-count');
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.classList.toggle('visible', unreadCount > 0);
+      localStorage.setItem(`unread_count_${room}`, unreadCount);
+    }
+  }
+
+  // باز کردن ویجت و ریست تعداد پیام‌های خوانده‌نشده
   chatButton.onclick = () => {
     chatContainer.classList.add('open');
     chatButton.classList.add('hidden');
+    unreadCount = 0; // ریست کردن تعداد پیام‌های جدید
+    updateUnreadBadge();
     document.getElementById('message-input')?.focus();
   };
+
+  // بستن ویجت
   closeChat.onclick = () => {
     chatContainer.classList.remove('open');
     chatButton.classList.remove('hidden');
@@ -306,6 +345,12 @@
             p.textContent = `${data.sender}: ${data.message}`;
             messagesDiv.appendChild(p);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // اگر ویجت بسته است و پیام از ادمین است، تعداد پیام‌های خوانده‌نشده را افزایش دهید
+            if (!chatContainer.classList.contains('open') && data.sender === 'Admin') {
+              unreadCount++;
+              updateUnreadBadge();
+            }
           }
         });
 
@@ -374,4 +419,7 @@
   } else {
     initChatUI();
   }
+
+  // به‌روزرسانی اولیه نشانگر تعداد پیام‌های خوانده‌نشده
+  updateUnreadBadge();
 })();

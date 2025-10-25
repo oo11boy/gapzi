@@ -132,7 +132,7 @@ const createRoom = async () => {
       embed_code:
         room.embed_code ||
         room.embedCode ||
-        `<script src="http:///widget.js?room=${room.room_code}"></script>`,
+        `<script src="http:///localhost:3000/chat-widget.js?room=${room.room_code}"></script>`,
     }));
 
     setRooms(roomsWithEmbed);
