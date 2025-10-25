@@ -15,23 +15,16 @@ export default function ErrorAlert({ error, setError }: ErrorAlertProps) {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="mx-4 sm:mx-6 lg:mx-8 mt-4 max-w-7xl"
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md"
         >
-          <div className="bg-linear-to-r from-red-500/10 to-pink-500/10 border border-red-500/20 backdrop-blur-sm rounded-xl p-4 shadow-lg">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-500/20 rounded-lg mr-3">
-                <span className="text-red-400">⚠️</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-400">{error}</p>
-              </div>
-              <button
-                onClick={() => setError('')}
-                className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
-              >
-                <XMarkIcon className="w-4 h-4 text-red-400" />
-              </button>
-            </div>
+          <div className="bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl shadow-lg flex items-center justify-between">
+            <p className="text-sm font-medium">{error}</p>
+            <button
+              onClick={() => setError('')}
+              className="p-1 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
           </div>
         </motion.div>
       )}

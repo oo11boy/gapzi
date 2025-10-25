@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db';
 import { verifyToken } from '../../../lib/auth';
@@ -9,7 +8,9 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { userId } = verifyToken(token);
+    const { userId, role } = verifyToken(token);
+    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden: Admins only' }, { status: 403 });
+
     const [rooms] = await pool.query('SELECT * FROM chat_rooms WHERE user_id = ?', [userId]);
     return NextResponse.json(rooms, { status: 200 });
   } catch (error) {
@@ -26,9 +27,10 @@ export async function POST(req: NextRequest) {
   if (!site_url) return NextResponse.json({ error: 'Site URL is required' }, { status: 400 });
 
   try {
-    const { userId } = verifyToken(token);
-    const roomCode = crypto.randomBytes(16).toString('hex');
+    const { userId, role } = verifyToken(token);
+    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden: Admins only' }, { status: 403 });
 
+    const roomCode = crypto.randomBytes(16).toString('hex');
     await pool.query('INSERT INTO chat_rooms (user_id, room_code, site_url) VALUES (?, ?, ?)', [
       userId,
       roomCode,
@@ -36,7 +38,6 @@ export async function POST(req: NextRequest) {
     ]);
 
     const embedCode = `<script src="http://localhost:3000/chat-widget.js?room=${roomCode}"></script>`;
-
     return NextResponse.json({ embedCode, roomCode, site_url }, { status: 201 });
   } catch (error) {
     console.error(error);

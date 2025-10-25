@@ -1,20 +1,25 @@
+import { sign, verify } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
-const SECRET = 'my-secret-key-123'; // بعداً در .env
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
-}
+export const generateToken = (userId: number, role: string) => {
+  return sign({ userId, role }, JWT_SECRET, { expiresIn: '1d' });
+};
 
-export async function comparePassword(password: string, hash: string) {
+export const verifyToken = (token: string) => {
+  try {
+    return verify(token, JWT_SECRET) as { userId: number; role: string };
+  } catch (error) {
+    throw new Error('Invalid token');
+  }
+};
+
+export const hashPassword = async (password: string) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+export const comparePassword = async (password: string, hash: string) => {
   return bcrypt.compare(password, hash);
-}
-
-export function generateToken(userId: number) {
-  return jwt.sign({ userId }, SECRET, { expiresIn: '1d' });
-}
-
-export function verifyToken(token: string) {
-  return jwt.verify(token, SECRET) as { userId: number };
-}
+};

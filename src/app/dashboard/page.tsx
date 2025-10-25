@@ -55,60 +55,50 @@ export default function Dashboard() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
-const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-const createRoom = async () => {
-  if (!siteUrl) {
-    setError('لطفاً آدرس وب‌سایت را وارد کنید');
-    return;
-  }
-  if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl)) {
-    setError('لطفاً یک URL معتبر وارد کنید (مانند https://example.com)');
-    return;
-  }
-
-  try {
-    setLoading(true);
-    const res = await fetch('/api/rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ site_url: siteUrl }),
-    });
-    const data = await res.json();
-
-    if (res.ok) {
-      // اگر API embedCode نداد، خودمان تولید می‌کنیم
-      const embedCode = data.embedCode || `<script src="http://localhost:3000/widget.js?room=${data.room_code}"></script>`;
-
-      const newRoom = {
-        ...data,
-        embed_code: embedCode,
-      };
-
-      // اضافه کردن اتاق به لیست و آپدیت selectedRoom
-      setRooms((prev) => [...prev, newRoom]);
-      setSelectedRoom(newRoom);
-      sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
-
-      // بارگذاری کاربران
-      if (newRoom.room_code) await loadUsers(newRoom.room_code);
-
-      setShowCreateRoom(false);
-      setSiteUrl('');
-      setEmbedCode(embedCode);
-      setShowEmbedModal(true); // modal باز شود
-    } else {
-      setError(data.error || 'ایجاد اتاق موفقیت‌آمیز نبود');
+  const createRoom = async () => {
+    if (!siteUrl) {
+      setError('لطفاً آدرس وب‌سایت را وارد کنید');
+      return;
     }
-  } catch (err) {
-    console.error(err);
-    setError('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
-  } finally {
-    setLoading(false);
-  }
-};
+    if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl)) {
+      setError('لطفاً یک URL معتبر وارد کنید (مانند https://example.com)');
+      return;
+    }
 
+    try {
+      setLoading(true);
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ site_url: siteUrl }),
+      });
+      const data = await res.json();
 
+      if (res.ok) {
+        const embedCode = data.embedCode || `<script src="http://localhost:3000/chat-widget.js?room=${data.room_code}"></script>`;
+        const newRoom = { ...data, embed_code: embedCode };
+        setRooms((prev) => [...prev, newRoom]);
+        setSelectedRoom(newRoom);
+        sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
+
+        if (newRoom.room_code) await loadUsers(newRoom.room_code);
+        setShowCreateRoom(false);
+        setSiteUrl('');
+        setEmbedCode(embedCode);
+        setShowEmbedModal(true);
+      } else {
+        setError(data.error || 'ایجاد اتاق موفقیت‌آمیز نبود');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     selectedUserRef.current = selectedUser;
@@ -120,120 +110,121 @@ const createRoom = async () => {
   }, [messages]);
 
   useEffect(() => {
- const fetchRooms = async () => {
-  try {
-    setLoading(true);
-    const res = await fetch('/api/rooms', { credentials: 'include' });
-    const data = await res.json();
+    const fetchRooms = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/rooms', { credentials: 'include' });
+        const data = await res.json();
 
-    // اصلاح embed_code برای هر اتاق
-    const roomsWithEmbed = data.map((room: any) => ({
-      ...room,
-      embed_code:
-        room.embed_code ||
-        room.embedCode ||
-        `<script src="http:///localhost:3000/chat-widget.js?room=${room.room_code}"></script>`,
-    }));
+        if (res.status === 403) {
+          setError('دسترسی غیرمجاز: فقط ادمین‌ها می‌توانند اتاق‌ها را مشاهده کنند');
+          return;
+        }
 
-    setRooms(roomsWithEmbed);
+        const roomsWithEmbed = data.map((room: any) => ({
+          ...room,
+          embed_code:
+            room.embed_code ||
+            `<script src="http://localhost:3000/chat-widget.js?room=${room.room_code}"></script>`,
+        }));
 
-    if (roomsWithEmbed.length === 0) {
-      setShowCreateRoom(true);
-      setLoading(false);
-      return;
-    }
+        setRooms(roomsWithEmbed);
 
-    const savedRoom = sessionStorage.getItem('selectedRoom');
-    let roomToSelect: Room | null = null;
+        if (roomsWithEmbed.length === 0) {
+          setShowCreateRoom(true);
+          setLoading(false);
+          return;
+        }
 
-    if (savedRoom) {
-      const parsedRoom = JSON.parse(savedRoom);
-      const foundRoom = roomsWithEmbed.find(
-        (room: Room) => room.room_code === parsedRoom.room_code
-      );
-      if (foundRoom) roomToSelect = foundRoom;
-    }
+        const savedRoom = sessionStorage.getItem('selectedRoom');
+        let roomToSelect: Room | null = null;
 
-    if (!roomToSelect) roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
+        if (savedRoom) {
+          const parsedRoom = JSON.parse(savedRoom);
+          const foundRoom = roomsWithEmbed.find(
+            (room: Room) => room.room_code === parsedRoom.room_code
+          );
+          if (foundRoom) roomToSelect = foundRoom;
+        }
 
-    setSelectedRoom(roomToSelect);
-    sessionStorage.setItem('selectedRoom', JSON.stringify(roomToSelect));
+        if (!roomToSelect) roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
 
-    if (roomToSelect?.room_code) {
-      await loadUsers(roomToSelect.room_code);
-    }
-  } catch (error) {
-    setError('بارگذاری اتاق‌ها موفقیت‌آمیز نبود');
-  } finally {
-    setLoading(false);
-  }
-};
+        setSelectedRoom(roomToSelect);
+        sessionStorage.setItem('selectedRoom', JSON.stringify(roomToSelect));
+
+        if (roomToSelect?.room_code) {
+          await loadUsers(roomToSelect.room_code);
+        }
+      } catch (error) {
+        setError('بارگذاری اتاق‌ها موفقیت‌آمیز نبود');
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchRooms();
   }, []);
 
-useEffect(() => {
-  if (loading || !selectedRoom || !selectedRoom.room_code) return;
+  useEffect(() => {
+    if (loading || !selectedRoom || !selectedRoom.room_code) return;
 
-  console.log('Initializing socket for room:', selectedRoom.room_code);
-  const newSocket = io('http://localhost:3000', {
-    transports: ['websocket', 'polling'],
-    reconnectionAttempts: 5,
-  });
+    const newSocket = io('http://localhost:3000', {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
 
-  socketRef.current = newSocket;
-  setSocket(newSocket);
+    socketRef.current = newSocket;
+    setSocket(newSocket);
 
-  newSocket.on('connect', () => {
-    console.log('✅ Socket connected:', newSocket.id);
-    // join اتاق انتخابی فعلی
-    newSocket.emit('join_session', { room: selectedRoom.room_code, session_id: 'admin-global' });
-  });
+    newSocket.on('connect', () => {
+      console.log('✅ Socket connected:', newSocket.id);
+      newSocket.emit('join_session', { room: selectedRoom.room_code, session_id: 'admin-global' });
+    });
 
-  newSocket.on('receive_message', (data) => {
-    if (data.room === selectedRoom.room_code) {
-      setMessages((prev) => {
-        const exists = prev.some(
-          (msg) =>
-            msg.timestamp === data.timestamp &&
-            msg.message === data.message &&
-            msg.session_id === data.session_id
-        );
-        if (selectedUserRef.current && data.session_id === selectedUserRef.current.session_id) {
-          return exists ? prev : [...prev, data];
+    newSocket.on('receive_message', (data) => {
+      if (data.room === selectedRoom.room_code) {
+        setMessages((prev) => {
+          const exists = prev.some(
+            (msg) =>
+              msg.timestamp === data.timestamp &&
+              msg.message === data.message &&
+              msg.session_id === data.session_id
+          );
+          if (selectedUserRef.current && data.session_id === selectedUserRef.current.session_id) {
+            return exists ? prev : [...prev, data];
+          }
+          return prev;
+        });
+
+        if (!selectedUserRef.current || selectedUserRef.current.session_id !== data.session_id) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.session_id === data.session_id
+                ? { ...u, newMessageCount: (u.newMessageCount || 0) + 1 }
+                : u
+            )
+          );
+          setNewMessageAlert(true);
         }
-        return prev;
-      });
-
-      if (!selectedUserRef.current || selectedUserRef.current.session_id !== data.session_id) {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.session_id === data.session_id
-              ? { ...u, newMessageCount: (u.newMessageCount || 0) + 1 }
-              : u
-          )
-        );
-        setNewMessageAlert(true);
       }
-    }
-  });
+    });
 
-  newSocket.on('user_typing', (data) => {
-    if (data.session_id === selectedUserRef.current?.session_id) {
-      setTypingUsers([data.name]);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => setTypingUsers([]), 2000);
-    }
-  });
+    newSocket.on('user_typing', (data) => {
+      if (data.session_id === selectedUserRef.current?.session_id) {
+        setTypingUsers([data.name]);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setTypingUsers([]), 2000);
+      }
+    });
 
-  newSocket.on('connect_error', () => setError('اتصال Socket با مشکل مواجه شد'));
-  newSocket.on('disconnect', () => console.log('❌ Socket disconnected'));
+    newSocket.on('connect_error', () => setError('اتصال Socket با مشکل مواجه شد'));
+    newSocket.on('disconnect', () => console.log('❌ Socket disconnected'));
 
-  return () => {
-    newSocket.disconnect();
-    socketRef.current = null;
-  };
-}, [selectedRoom, loading]);
+    return () => {
+      newSocket.disconnect();
+      socketRef.current = null;
+    };
+  }, [selectedRoom, loading]);
 
   const loadUsers = async (roomCode: string) => {
     if (!roomCode) {
@@ -242,7 +233,6 @@ useEffect(() => {
       return;
     }
     try {
-      console.log('Fetching users for room:', roomCode);
       const res = await fetch(`/api/users?room=${roomCode}`, { credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
@@ -338,7 +328,13 @@ useEffect(() => {
       )}
       dir="rtl"
     >
-      <Header setShowSettingsModal={setShowSettingsModal} setDarkMode={setDarkMode} darkMode={darkMode} setShowCreateRoom={setShowCreateRoom} setShowSelectSiteModal={setShowSelectSiteModal} />
+      <Header
+        setShowSettingsModal={setShowSettingsModal}
+        setDarkMode={setDarkMode}
+        darkMode={darkMode}
+        setShowCreateRoom={setShowCreateRoom}
+        setShowSelectSiteModal={setShowSelectSiteModal}
+      />
 
       <ErrorAlert error={error} setError={setError} />
       <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -357,7 +353,6 @@ useEffect(() => {
             typingUsers={typingUsers}
             sendMessage={sendMessage}
             handleTyping={handleTyping}
-          
             darkMode={darkMode}
           />
         </div>
@@ -398,11 +393,11 @@ useEffect(() => {
         embedCode={embedCode}
       />
       <SettingsModal
-  showSettingsModal={showSettingsModal}
-  setShowSettingsModal={setShowSettingsModal}
-  darkMode={darkMode}
-  setDarkMode={setDarkMode}
-/>
+        showSettingsModal={showSettingsModal}
+        setShowSettingsModal={setShowSettingsModal}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+      />
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {

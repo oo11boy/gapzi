@@ -42,14 +42,12 @@ export default function ChatArea({
 }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // تابع اسکرول نرم با جاوااسکریپت
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
-  // اسکرول به پایین هنگام mount یا تغییر messages
   useEffect(() => {
     setTimeout(() => scrollToBottom(), 50);
   }, [messages]);
@@ -69,7 +67,6 @@ export default function ChatArea({
       >
         {selectedUser ? (
           <>
-            {/* Header */}
             <div
               className={classNames(
                 'sticky top-0 z-10 p-4 border-b flex items-center space-x-3',
@@ -94,7 +91,6 @@ export default function ChatArea({
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-2 custom-scrollbar">
               <AnimatePresence initial={false}>
                 {messages.length === 0 ? (
@@ -156,7 +152,6 @@ export default function ChatArea({
                 )}
               </AnimatePresence>
 
-              {/* Typing indicator */}
               <AnimatePresence>
                 {typingUsers.length > 0 && (
                   <motion.div
@@ -188,7 +183,6 @@ export default function ChatArea({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div
               className={classNames(
                 'sticky bottom-0 z-10 p-4 border-t',

@@ -1,65 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db';
+import { RowDataPacket } from 'mysql2';
+
+interface Message extends RowDataPacket {
+  id: number;
+  message_id: string;
+  room_id: number;
+  session_id: string;
+  sender_type: 'admin' | 'guest';
+  message: string;
+  timestamp: string;
+  is_read: boolean;
+}
 
 export async function GET(req: NextRequest) {
+  const roomCode = req.nextUrl.searchParams.get('room');
+  const sessionId = req.nextUrl.searchParams.get('session_id');
+
+  if (!roomCode || !sessionId) {
+    return NextResponse.json(
+      { error: 'Missing room or session_id' },
+      { status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+    );
+  }
+
   try {
-    const roomCode = req.nextUrl.searchParams.get('room');
-    const sessionId = req.nextUrl.searchParams.get('session_id');
-    if (!roomCode || !sessionId) {
-      return NextResponse.json([], { 
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      });
-    }
-
-    const [rooms] = await pool.query('SELECT id FROM chat_rooms WHERE room_code = ?', [roomCode]);
-    const roomId = (rooms as any[])[0]?.id;
+    const [rooms] = await pool.query<RowDataPacket[]>('SELECT id FROM chat_rooms WHERE room_code = ?', [roomCode]);
+    const roomId = rooms[0]?.id;
     if (!roomId) {
-      return NextResponse.json([], { 
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      });
+      return NextResponse.json(
+        { error: 'Invalid room' },
+        { status: 404, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+      );
     }
 
-    const [messages] = await pool.query(
-      `SELECT m.message, m.timestamp, 
-              CASE 
-                WHEN m.sender_type = 'owner' THEN 'Admin'
-                ELSE us.name 
-              END as sender
-       FROM messages m
-       LEFT JOIN user_sessions us ON m.session_id = us.session_id AND m.room_id = us.room_id
-       WHERE m.room_id = ? AND m.session_id = ?
-       ORDER BY m.timestamp`,
+    const [messages] = await pool.query<Message[]>(
+      `SELECT id, message_id, room_id, session_id, sender_type, message, timestamp, is_read
+       FROM messages
+       WHERE room_id = ? AND (session_id = ? OR sender_type = 'admin')
+       ORDER BY timestamp ASC`,
       [roomId, sessionId]
     );
 
-    return NextResponse.json(messages || [], { 
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    });
+    return NextResponse.json(
+      messages.map((msg) => ({
+        id: msg.id,
+        message_id: msg.message_id,
+        room_id: msg.room_id,
+        session_id: msg.session_id,
+        sender_type: msg.sender_type,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        is_read: !!msg.is_read,
+      })),
+      { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+    );
   } catch (error) {
     console.error('Error fetching messages:', error);
-    return NextResponse.json([], { 
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    });
+    return NextResponse.json(
+      { error: 'Server error' },
+      { status: 500, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+    );
   }
 }
 
@@ -69,7 +70,7 @@ export async function OPTIONS() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
 }

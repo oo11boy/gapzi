@@ -9,13 +9,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+    const [users] = await pool.query('SELECT u.*, r.name as role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = ?', [username]);
     const user = (users as any[])[0];
     if (!user || !(await comparePassword(password, user.password_hash))) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.role);
     const response = NextResponse.json({ token }, { status: 200 });
     response.cookies.set('token', token, { httpOnly: true });
     return response;

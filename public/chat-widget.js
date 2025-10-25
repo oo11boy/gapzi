@@ -1,4 +1,4 @@
-(function() {
+(function () {
   console.log('Chat widget script loaded');
 
   // خواندن room code از query string
@@ -21,204 +21,306 @@
   // متغیر برای ردیابی تعداد پیام‌های خوانده‌نشده
   let unreadCount = parseInt(localStorage.getItem(`unread_count_${room}`) || '0');
 
-  // استایل‌های کلی
+  // استایل‌های ویجت
   const style = document.createElement('style');
   style.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap');
-    * { box-sizing: border-box; font-family: 'Vazirmatn', sans-serif; }
-    #chat-widget { 
-      position: fixed; 
-      bottom: 20px; 
-      right: 20px; 
-      z-index: 10000; 
-      direction: rtl; 
-    }
-    #chat-button { 
-      width: 60px; 
-      height: 60px; 
-      background: #007bff; 
-      border-radius: 50%; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      cursor: pointer; 
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
-      transition: transform 0.3s ease, background 0.3s ease, opacity 0.3s ease; 
-      position: relative;
-    }
-    #chat-button:hover { 
-      transform: scale(1.1); 
-      background: #0056b3; 
-    }
-    #chat-button.hidden { 
-      opacity: 0; 
-      pointer-events: none; 
-    }
-    #chat-button svg { 
-      width: 28px; 
-      height: 28px; 
-      fill: white; 
-    }
-    #chat-button .badge {
-      position: absolute;
-      top: -8px;
-      left: -8px;
-      background: #ff4444;
-      color: white;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 700;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      display: none;
-    }
-    #chat-button .badge.visible {
-      display: flex;
-    }
-    #chat-container { 
-      width: 360px; 
-      height: 500px; 
-      background: #ffffff; 
-      border-radius: 16px; 
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2); 
-      display: none; 
-      flex-direction: column; 
-      overflow: hidden; 
-      transition: all 0.3s ease; 
-    }
-    #chat-container.open { 
-      display: flex; 
-      animation: slideIn 0.3s ease; 
-    }
-    @keyframes slideIn { 
-      from { transform: translateY(20px); opacity: 0; } 
-      to { transform: translateY(0); opacity: 1; } 
-    }
-    #chat-header { 
-      background: #007bff; 
-      color: white; 
-      padding: 16px; 
-      font-size: 18px; 
-      font-weight: 700; 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-    }
-    #chat-header button { 
-      background: none; 
-      border: none; 
-      color: white; 
-      font-size: 24px; 
-      cursor: pointer; 
-    }
-    #messages { 
-      flex: 1; 
-      overflow-y: auto; 
-      padding: 16px; 
-      background: #f8f9fa; 
-      display: flex; 
-      flex-direction: column; 
-      gap: 8px; 
-    }
-    .message { 
-      max-width: 80%; 
-      padding: 10px 14px; 
-      border-radius: 12px; 
-      margin: 4px 0; 
-      line-height: 1.5; 
-      font-size: 14px; 
-    }
-    .message.user { 
-      background: #007bff; 
-      color: white; 
-      align-self: flex-end; 
-      border-bottom-right-radius: 2px; 
-    }
-    .message.admin { 
-      background: #e9ecef; 
-      color: #333; 
-      align-self: flex-start; 
-      border-bottom-left-radius: 2px; 
-    }
-    #chat-input-container { 
-      padding: 12px; 
-      background: #ffffff; 
-      border-top: 1px solid #e0e0e0; 
-      display: flex; 
-      gap: 8px; 
-    }
-    #message-input { 
-      flex: 1; 
-      padding: 10px; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      font-size: 14px; 
-      outline: none; 
-    }
-    #message-input:focus { 
-      border-color: #007bff; 
-      box-shadow: 0 0 0 2px rgba(0,123,255,0.2); 
-    }
-    #send-message { 
-      background: #007bff; 
-      color: white; 
-      border: none; 
-      padding: 10px 16px; 
-      border-radius: 8px; 
-      cursor: pointer; 
-      font-size: 14px; 
-      transition: background 0.3s ease; 
-    }
-    #send-message:hover { 
-      background: #0056b3; 
-    }
-    #auth-form { 
-      padding: 16px; 
-      display: flex; 
-      flex-direction: column; 
-      gap: 12px; 
-    }
-    #auth-form input { 
-      padding: 10px; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      font-size: 14px; 
-      outline: none; 
-    }
-    #auth-form input:focus { 
-      border-color: #007bff; 
-      box-shadow: 0 0 0 2px rgba(0,123,255,0.2); 
-    }
-    #submit-auth { 
-      background: #007bff; 
-      color: white; 
-      border: none; 
-      padding: 12px; 
-      border-radius: 8px; 
-      cursor: pointer; 
-      font-size: 16px; 
-      transition: background 0.3s ease; 
-    }
-    #submit-auth:hover { 
-      background: #0056b3; 
-    }
-    ::-webkit-scrollbar { 
-      width: 8px; 
-    }
-    ::-webkit-scrollbar-track { 
-      background: #f1f1f1; 
-    }
-    ::-webkit-scrollbar-thumb { 
-      background: #888; 
-      border-radius: 4px; 
-    }
-    ::-webkit-scrollbar-thumb:hover { 
-      background: #555; 
-    }
+ @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  font-family: 'Vazirmatn', sans-serif;
+}
+
+#chat-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10000;
+  direction: rtl;
+}
+
+/* === دکمه باز کردن چت === */
+#chat-button {
+  width: 60px;
+  height: 60px;
+  background: #007bff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  transition: transform 0.3s ease, background 0.3s ease, opacity 0.3s ease;
+  position: relative;
+}
+
+#chat-button:hover {
+  transform: scale(1.1);
+  background: #0056b3;
+}
+
+#chat-button.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#chat-button svg {
+  width: 28px;
+  height: 28px;
+  fill: white;
+}
+
+/* === نشان پیام‌های خوانده نشده === */
+#chat-button .badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  background: #ff4444;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  display: none;
+}
+
+#chat-button .badge.visible {
+  display: flex;
+}
+
+/* === جعبه چت === */
+#chat-container {
+  width: 360px;
+  height: 500px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+#chat-container.open {
+  display: flex;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* === هدر چت === */
+#chat-header {
+  background: #007bff;
+  color: white;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.chat-header-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+#chat-header button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+/* === وضعیت ادمین (آخرین بازدید) === */
+#admin-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px 10px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
+}
+
+#admin-status.online {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+#admin-status.offline {
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.15);
+}
+
+#admin-status svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+
+/* === محتوای پیام‌ها === */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin: 4px 0;
+  line-height: 1.5;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.message.user {
+  background: #007bff;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+
+.message.admin {
+  background: #e9ecef;
+  color: #333;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+
+.message-time {
+  font-size: 10px;
+  opacity: 0.7;
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* === تایپ کردن === */
+#chat-typing {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #6b7280;
+  display: none;
+}
+
+/* === ورودی پیام === */
+#chat-input-container {
+  padding: 12px;
+  background: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 8px;
+}
+
+#message-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+#message-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+}
+
+#send-message {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.3s ease;
+}
+
+#send-message:hover {
+  background: #0056b3;
+}
+
+/* === فرم ورود کاربر === */
+#auth-form {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#auth-form input {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+#auth-form input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+}
+
+#submit-auth {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s ease;
+}
+
+#submit-auth:hover {
+  background: #0056b3;
+}
+
+/* === اسکرول سفارشی === */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
   `;
   document.head.appendChild(style);
 
@@ -233,9 +335,11 @@
     <div id="chat-container">
       <div id="chat-header">
         <span>چت زنده</span>
+        <span id="admin-status"></span>
         <button id="close-chat">×</button>
       </div>
       <div id="messages"></div>
+      <div id="chat-typing"></div>
       <div id="chat-input-container">
         <input id="message-input" type="text" placeholder="پیام خود را بنویسید...">
         <button id="send-message">ارسال</button>
@@ -247,14 +351,49 @@
   const chatButton = document.getElementById('chat-button');
   const chatContainer = document.getElementById('chat-container');
   const closeChat = document.getElementById('close-chat');
+  const adminStatus = document.getElementById('admin-status');
 
   // تابع برای به‌روزرسانی نشانگر تعداد پیام‌های خوانده‌نشده
   function updateUnreadBadge() {
     const badge = document.getElementById('unread-count');
     if (badge) {
-      badge.textContent = unreadCount;
+      badge.textContent = unreadCount.toString();
       badge.classList.toggle('visible', unreadCount > 0);
-      localStorage.setItem(`unread_count_${room}`, unreadCount);
+      localStorage.setItem(`unread_count_${room}`, unreadCount.toString());
+    }
+  }
+
+  // تابع برای به‌روزرسانی وضعیت ادمین
+  async function updateAdminStatus() {
+    try {
+      const response = await fetch(`http://localhost:3000/api/users?room=${room}&widget=true`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}: Failed to fetch admin status`);
+      }
+      const users = await response.json();
+      const lastActive = users[0]?.last_active;
+      if (lastActive) {
+        const lastActiveTime = new Date(lastActive).getTime();
+        const currentTime = new Date().getTime();
+        const diffMinutes = (currentTime - lastActiveTime) / (1000 * 60);
+
+ if (diffMinutes < 10) {
+  adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
+  adminStatus.className = 'online';
+} else {
+  adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید اخیراً`;
+  adminStatus.className = 'offline';
+}
+      } else {
+        adminStatus.textContent = 'آخرین بازدید به تازگی';
+        adminStatus.style.color = '#e0e0e0';
+      }
+    } catch (error) {
+      console.error('Error fetching admin status:', error.message);
+      adminStatus.textContent = 'آخرین بازدید به تازگی';
+      adminStatus.style.color = '#e0e0e0';
     }
   }
 
@@ -262,9 +401,10 @@
   chatButton.onclick = () => {
     chatContainer.classList.add('open');
     chatButton.classList.add('hidden');
-    unreadCount = 0; // ریست کردن تعداد پیام‌های جدید
+    unreadCount = 0;
     updateUnreadBadge();
     document.getElementById('message-input')?.focus();
+    updateAdminStatus();
   };
 
   // بستن ویجت
@@ -279,11 +419,16 @@
 
   function initChatUI() {
     chatContainer.innerHTML = `
-      <div id="chat-header">
-        <span>چت زنده</span>
-        <button id="close-chat">×</button>
-      </div>
+<div id="chat-header">
+  <div class="chat-header-top">
+    <span class="chat-title">چت زنده</span>
+    <button id="close-chat">×</button>
+  </div>
+  <div id="admin-status"></div>
+</div>
+
       <div id="messages"></div>
+      <div id="chat-typing"></div>
       <div id="chat-input-container">
         <input id="message-input" type="text" placeholder="پیام خود را بنویسید...">
         <button id="send-message">ارسال</button>
@@ -294,6 +439,8 @@
     const input = document.getElementById('message-input');
     const button = document.getElementById('send-message');
     const closeChat = document.getElementById('close-chat');
+    const typingIndicator = document.getElementById('chat-typing');
+    const adminStatus = document.getElementById('admin-status');
 
     closeChat.onclick = () => {
       chatContainer.classList.remove('open');
@@ -302,22 +449,33 @@
 
     // بارگذاری پیام‌های قبلی
     fetch(`http://localhost:3000/api/messages?room=${room}&session_id=${sessionId}`)
-      .then(res => res.json())
-      .then(messages => {
-        messages.forEach(msg => {
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}: Failed to fetch messages`);
+        return res.json();
+      })
+      .then((messages) => {
+        messagesDiv.innerHTML = '';
+        messages.forEach((msg) => {
           const p = document.createElement('div');
-          p.className = `message ${msg.sender === 'Admin' ? 'admin' : 'user'}`;
-          p.textContent = `${msg.sender}: ${msg.message}`;
+          p.className = `message ${msg.sender_type === 'admin' ? 'admin' : 'user'}`;
+          p.innerHTML = `
+            <div>${msg.message}</div>
+            <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString('fa-IR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}</div>
+          `;
           messagesDiv.appendChild(p);
         });
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
       })
-      .catch(err => console.error('Failed to load messages:', err));
+      .catch((err) => console.error('Failed to load messages:', err.message));
 
     // بارگذاری socket.io
     if (!window.io) {
       const script = document.createElement('script');
       script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+      script.async = true;
       script.onload = setupSocket;
       script.onerror = () => console.error('Failed to load socket.io');
       document.head.appendChild(script);
@@ -327,56 +485,101 @@
 
     function setupSocket() {
       if (!window.chatSocket) {
-        window.chatSocket = io('http://localhost:3000', { transports: ['websocket', 'polling'], timeout: 20000 });
+        window.chatSocket = io('http://localhost:3000', {
+          transports: ['websocket', 'polling'],
+          timeout: 20000,
+        });
 
         window.chatSocket.on('connect', () => {
           console.log('Widget socket connected:', window.chatSocket.id);
           window.chatSocket.emit('join_session', { room, session_id: sessionId });
+          updateAdminStatus();
         });
 
         window.chatSocket.on('connect_error', (err) => {
-          console.error('Widget socket connection error:', err);
+          console.error('Widget socket connection error:', err.message);
         });
 
         window.chatSocket.on('receive_message', (data) => {
-          if (data.session_id === sessionId || data.sender === 'Admin') {
+          if (data.session_id === sessionId || data.sender_type === 'admin') {
             const p = document.createElement('div');
-            p.className = `message ${data.sender === 'Admin' ? 'admin' : 'user'}`;
-            p.textContent = `${data.sender}: ${data.message}`;
+            p.className = `message ${data.sender_type === 'admin' ? 'admin' : 'user'}`;
+            p.innerHTML = `
+              <div>${data.message}</div>
+              <div class="message-time">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}</div>
+            `;
             messagesDiv.appendChild(p);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-            // اگر ویجت بسته است و پیام از ادمین است، تعداد پیام‌های خوانده‌نشده را افزایش دهید
-            if (!chatContainer.classList.contains('open') && data.sender === 'Admin') {
+            if (!chatContainer.classList.contains('open') && data.sender_type === 'admin') {
               unreadCount++;
               updateUnreadBadge();
             }
           }
         });
 
-        input.addEventListener('input', () => {
-          window.chatSocket.emit('user_typing', { room, name: userInfo.name, session_id: sessionId });
+        window.chatSocket.on('user_typing', (data) => {
+          if (data.session_id === sessionId && data.name !== userInfo.name) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.textContent = `${data.name} در حال تایپ...`;
+            setTimeout(() => (typingIndicator.style.display = 'none'), 2000);
+          }
+        });
+
+        window.chatSocket.on('admin_status', (status) => {
+          if (status.isOnline) {
+            adminStatus.textContent = 'ادمین آنلاین است';
+         
+          } else {
+            adminStatus.textContent = 'آخرین بازدید به تازگی';
+          
+          }
         });
       }
 
       button.onclick = () => {
         const msg = input.value.trim();
         if (msg && window.chatSocket) {
-          window.chatSocket.emit('send_message', { room, message: msg, sender: userInfo.name, session_id: sessionId });
+          window.chatSocket.emit('send_message', {
+            room,
+            message: msg,
+            sender: userInfo.name,
+            sender_type: 'guest',
+            session_id: sessionId,
+            timestamp: new Date().toISOString(),
+          });
           input.value = '';
         }
       };
 
       input.onkeypress = (e) => {
-        if (e.key === 'Enter') button.click();
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          button.click();
+        }
+      };
+
+      input.oninput = () => {
+        window.chatSocket.emit('user_typing', { room, name: userInfo.name, session_id: sessionId });
       };
     }
+
+    // به‌روزرسانی دوره‌ای فقط در صورت باز بودن ویجت
+    setInterval(() => {
+      if (chatContainer.classList.contains('open')) {
+        updateAdminStatus();
+      }
+    }, 60000);
   }
 
   if (!isAuthenticated) {
     chatContainer.innerHTML = `
       <div id="chat-header">
         <span>چت زنده</span>
+        <span id="admin-status"></span>
         <button id="close-chat">×</button>
       </div>
       <div id="auth-form">
@@ -395,24 +598,29 @@
     document.getElementById('submit-auth').onclick = async () => {
       const name = document.getElementById('name').value.trim();
       const email = document.getElementById('email').value.trim();
-      if (!name || !email) return alert('لطفاً نام و ایمیل خود را وارد کنید');
+      if (!name || !email) {
+        alert('لطفاً نام و ایمیل خود را وارد کنید');
+        return;
+      }
 
       userInfo = { name, email, room };
       localStorage.setItem(`chat_user_info_${room}`, JSON.stringify(userInfo));
 
       try {
-        const res = await fetch('http://localhost:3000/api/user-session', {
+        const res = await fetch('http://localhost:3000/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ room, session_id: sessionId, name, email }),
         });
-        if (!res.ok) throw new Error('Failed to save session');
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}: Failed to save session`);
+        }
         isAuthenticated = true;
         initChatUI();
         chatContainer.classList.add('open');
         chatButton.classList.add('hidden');
       } catch (err) {
-        console.error('Failed to save user session:', err);
+        console.error('Failed to save user session:', err.message);
         alert('خطا در شروع چت: ' + err.message);
       }
     };
@@ -420,6 +628,6 @@
     initChatUI();
   }
 
-  // به‌روزرسانی اولیه نشانگر تعداد پیام‌های خوانده‌نشده
   updateUnreadBadge();
+  updateAdminStatus();
 })();

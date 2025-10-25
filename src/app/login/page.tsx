@@ -27,24 +27,24 @@ export default function Login() {
   return (
     <div className="flex justify-center items-center h-screen">
       <form onSubmit={handleSubmit} className="p-6 bg-white rounded shadow">
-        <h2 className="text-2xl mb-4">Login</h2>
+        <h2 className="text-2xl mb-4">ورود</h2>
         {error && <p className="text-red-500">{error}</p>}
         <input
           type="text"
-          placeholder="Username"
+          placeholder="نام کاربری"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           className="border p-2 mb-4 w-full"
         />
         <input
           type="password"
-          placeholder="Password"
+          placeholder="رمز عبور"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="border p-2 mb-4 w-full"
         />
         <button type="submit" className="bg-blue-500 text-white p-2 w-full">
-          Login
+          ورود
         </button>
       </form>
     </div>
