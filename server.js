@@ -54,6 +54,24 @@ app.prepare().then(() => {
           return;
         }
 
+        // به‌روزرسانی last_active هنگام اتصال
+        await pool.query(
+          'UPDATE user_sessions SET last_active = CURRENT_TIMESTAMP WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
+        const [updatedSession] = await pool.query(
+          'SELECT last_active FROM user_sessions WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
+        // ارسال وضعیت به تمام کلاینت‌های متصل به اتاق
+        io.to(room).emit('user_status', {
+          session_id,
+          last_active: updatedSession[0]?.last_active,
+          isOnline: true,
+        });
+
         const adminActive = [...adminLastActive.keys()].some(
           (key) => key.startsWith(`${room}:`) && Date.now() - adminLastActive.get(key) < 10 * 60 * 1000
         );
@@ -84,6 +102,12 @@ app.prepare().then(() => {
           [messageId, roomId, senderType, message, session_id, timestamp || new Date().toISOString()]
         );
 
+        // به‌روزرسانی last_active
+        await pool.query(
+          'UPDATE user_sessions SET last_active = CURRENT_TIMESTAMP WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
         console.log('💾 Message saved in DB with ID:', messageId);
 
         if (senderType === 'admin') {
@@ -95,6 +119,18 @@ app.prepare().then(() => {
             console.warn(`⚠️ Admin user "${sender}" not found in users table`);
           }
         }
+
+        const [updatedSession] = await pool.query(
+          'SELECT last_active FROM user_sessions WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
+        // ارسال وضعیت کاربر به تمام کلاینت‌های متصل به اتاق
+        io.to(room).emit('user_status', {
+          session_id,
+          last_active: updatedSession[0]?.last_active,
+          isOnline: true,
+        });
 
         const msg = {
           room,
@@ -115,9 +151,39 @@ app.prepare().then(() => {
       }
     });
 
-    socket.on('user_typing', ({ room, name, session_id }) => {
-      socket.to(room).except(`${room}:${session_id}`).emit('user_typing', { name, session_id });
-      socket.to(`${room}:${session_id}`).except(socket.id).emit('user_typing', { name, session_id });
+    socket.on('user_typing', async ({ room, name, session_id }) => {
+      try {
+        const [rooms] = await pool.query('SELECT id FROM chat_rooms WHERE room_code = ?', [room]);
+        const roomId = rooms[0]?.id;
+        if (!roomId) {
+          socket.emit('error', { message: 'Invalid room' });
+          return;
+        }
+
+        // به‌روزرسانی last_active هنگام تایپ
+        await pool.query(
+          'UPDATE user_sessions SET last_active = CURRENT_TIMESTAMP WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
+        const [updatedSession] = await pool.query(
+          'SELECT last_active FROM user_sessions WHERE session_id = ? AND room_id = ?',
+          [session_id, roomId]
+        );
+
+        // ارسال وضعیت کاربر به تمام کلاینت‌های متصل به اتاق
+        io.to(room).emit('user_status', {
+          session_id,
+          last_active: updatedSession[0]?.last_active,
+          isOnline: true,
+        });
+
+        socket.to(room).except(`${room}:${session_id}`).emit('user_typing', { name, session_id });
+        socket.to(`${room}:${session_id}`).except(socket.id).emit('user_typing', { name, session_id });
+      } catch (error) {
+        console.error('⚠️ Error in user_typing:', error);
+        socket.emit('error', { message: 'Server error' });
+      }
     });
 
     socket.on('disconnect', () => {
@@ -125,16 +191,25 @@ app.prepare().then(() => {
     });
   });
 
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, lastActive] of adminLastActive) {
-      if (now - lastActive > 10 * 60 * 1000) {
-        adminLastActive.delete(key);
-        const room = key.split(':')[0];
-        io.to(room).emit('admin_status', { isOnline: false });
+  // بررسی دوره‌ای برای آفلاین کردن کاربران غیرفعال
+  setInterval(async () => {
+    try {
+      const [sessions] = await pool.query(
+        'SELECT session_id, room_id, last_active, room_code FROM user_sessions WHERE last_active < ?',
+        [new Date(Date.now() - 2 * 60 * 1000).toISOString()]
+      );
+
+      for (const session of sessions) {
+        io.to(session.room_code).emit('user_status', {
+          session_id: session.session_id,
+          last_active: session.last_active,
+          isOnline: false,
+        });
       }
+    } catch (error) {
+      console.error('⚠️ Error checking offline users:', error);
     }
-  }, 60000);
+  }, 30000); // هر 30 ثانیه بررسی می‌شود
 
   const PORT = 3000;
   server.listen(PORT, (err) => {

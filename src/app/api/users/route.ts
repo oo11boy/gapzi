@@ -13,8 +13,8 @@ interface User extends RowDataPacket {
   name: string;
   email: string;
   room_id: number;
-  newMessageCount: string | number;
   last_active: string;
+  newMessageCount: string | number;
   role_name: string;
 }
 
@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // بررسی وضعیت ادمین با استفاده از chat_rooms.user_id
       const [adminSessions] = await pool.query<User[]>(
         `SELECT us.last_active, r.name as role_name
          FROM user_sessions us
@@ -54,7 +53,6 @@ export async function GET(req: NextRequest) {
       );
 
       if (adminSessions.length === 0) {
-        // اگر سشن ادمین پیدا نشد، پاسخ پیش‌فرض
         return NextResponse.json(
           { last_active: null, role: 'admin', room_code: roomCode },
           { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }
@@ -71,7 +69,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // برای داشبورد ادمین (با توکن)
     const { userId, role } = verifyToken(token);
     if (role !== 'admin') {
       return NextResponse.json(
@@ -110,6 +107,7 @@ export async function GET(req: NextRequest) {
         ...user,
         room_code: roomCode,
         newMessageCount: parseInt(String(user.newMessageCount)) || 0,
+        isOnline: new Date(user.last_active).getTime() > Date.now() - 2 * 60 * 1000, // آنلاین اگر در 2 دقیقه گذشته فعال بوده
       })),
       { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }
     );

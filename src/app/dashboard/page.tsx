@@ -24,6 +24,8 @@ interface User {
   email: string;
   room_code?: string;
   newMessageCount?: number;
+  last_active?: string;
+  isOnline?: boolean;
 }
 
 interface Message {
@@ -56,15 +58,16 @@ export default function Dashboard() {
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-useEffect(() => {
-  const checkAuth = async () => {
-    const res = await fetch("/api/me", { credentials: "include" });
-    if (!res.ok) {
-      window.location.href = "/login";
-    }
-  };
-  checkAuth();
-}, []);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      if (!res.ok) {
+        window.location.href = '/login';
+      }
+    };
+    checkAuth();
+  }, []);
 
   const createRoom = async () => {
     if (!siteUrl) {
@@ -188,46 +191,45 @@ useEffect(() => {
     newSocket.on('connect', () => {
       console.log('✅ Socket connected:', newSocket.id);
       newSocket.emit('join_session', { room: selectedRoom.room_code, session_id: 'admin-global' });
+      // ارسال admin_connect برای به‌روزرسانی وضعیت ادمین
+      newSocket.emit('admin_connect', { room: selectedRoom.room_code, adminId: 'admin-global' });
     });
 
-newSocket.on('receive_message', (data) => {
-  if (data.room === selectedRoom.room_code) {
-    setMessages((prev) => {
-      const exists = prev.some(
-        (msg) =>
-          msg.timestamp === data.timestamp &&
-          msg.message === data.message &&
-          msg.session_id === data.session_id
-      );
+    newSocket.on('receive_message', (data) => {
+      if (data.room === selectedRoom.room_code) {
+        setMessages((prev) => {
+          const exists = prev.some(
+            (msg) =>
+              msg.timestamp === data.timestamp &&
+              msg.message === data.message &&
+              msg.session_id === data.session_id
+          );
 
-      // فقط پیام‌های مرتبط با کاربر انتخاب‌شده
-      if (
-        selectedUserRef.current &&
-        data.session_id === selectedUserRef.current.session_id
-      ) {
-        return exists ? prev : [...prev, data];
+          if (
+            selectedUserRef.current &&
+            data.session_id === selectedUserRef.current.session_id
+          ) {
+            return exists ? prev : [...prev, data];
+          }
+
+          return prev;
+        });
+
+        if (
+          !selectedUserRef.current ||
+          selectedUserRef.current.session_id !== data.session_id
+        ) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.session_id === data.session_id
+                ? { ...u, newMessageCount: (u.newMessageCount || 0) + 1 }
+                : u
+            )
+          );
+          setNewMessageAlert(true);
+        }
       }
-
-      return prev;
     });
-
-    if (
-      !selectedUserRef.current ||
-      selectedUserRef.current.session_id !== data.session_id
-    ) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.session_id === data.session_id
-            ? { ...u, newMessageCount: (u.newMessageCount || 0) + 1 }
-            : u
-        )
-      );
-      setNewMessageAlert(true);
-    }
-  }
-});
-
-
 
     newSocket.on('user_typing', (data) => {
       if (data.session_id === selectedUserRef.current?.session_id) {
@@ -235,6 +237,24 @@ newSocket.on('receive_message', (data) => {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => setTypingUsers([]), 2000);
       }
+    });
+
+    // مدیریت رویداد user_status
+    newSocket.on('user_status', ({ session_id, last_active, isOnline }) => {
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.session_id === session_id
+            ? { ...u, last_active, isOnline }
+            : u
+        )
+      );
+
+      // به‌روزرسانی selectedUser اگر تغییر کند
+      setSelectedUser((prev) =>
+        prev && prev.session_id === session_id
+          ? { ...prev, last_active, isOnline }
+          : prev
+      );
     });
 
     newSocket.on('connect_error', () => setError('اتصال Socket با مشکل مواجه شد'));
@@ -305,7 +325,7 @@ newSocket.on('receive_message', (data) => {
       room: selectedUser.room_code,
       message,
       sender: 'Admin',
-       sender_type: 'admin', 
+      sender_type: 'admin',
       session_id: selectedUser.session_id,
       timestamp: new Date().toISOString(),
     };
@@ -365,6 +385,7 @@ newSocket.on('receive_message', (data) => {
             selectedUser={selectedUser}
             setSelectedUser={setSelectedUser}
             loadMessages={loadMessages}
+            darkMode={darkMode}
           />
           <ChatArea
             selectedUser={selectedUser}

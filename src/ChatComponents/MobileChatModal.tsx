@@ -9,12 +9,14 @@ interface User {
   name: string;
   email: string;
   room_code?: string;
-  newMessageCount?: number; // Changed from hasNewMessage to match UserList.tsx
+  newMessageCount?: number;
+  last_active?: string;
+  isOnline?: boolean;
 }
 
 interface Message {
   sender: string;
-  sender_type:string;
+  sender_type: string;
   message: string;
   session_id: string;
   timestamp: string;
@@ -30,7 +32,7 @@ interface MobileChatModalProps {
   sendMessage: () => void;
   handleTyping: () => void;
   handleBack: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>; // Allow null
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   darkMode: boolean;
 }
 
@@ -46,12 +48,20 @@ export default function MobileChatModal({
   messagesEndRef,
   darkMode,
 }: MobileChatModalProps) {
-  // Auto-scroll to the last message on mount and when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, messagesEndRef]);
+
+  const formatLastActive = (lastActive?: string) => {
+    if (!lastActive) return 'نامشخص';
+    const date = new Date(lastActive);
+    return date.toLocaleString('fa-IR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -72,7 +82,6 @@ export default function MobileChatModal({
               darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
             )}
           >
-            {/* Header */}
             <div
               className={classNames(
                 'sticky top-0 z-10 p-4 border-b flex items-center space-x-3',
@@ -97,11 +106,17 @@ export default function MobileChatModal({
                 >
                   {selectedUser.name}
                 </h3>
-                <p className="text-xs text-green-500 font-medium">آنلاین</p>
+                <p
+                  className={classNames(
+                    'text-xs font-medium',
+                    selectedUser.isOnline ? 'text-green-500' : 'text-gray-500'
+                  )}
+                >
+                  {selectedUser.isOnline ? 'آنلاین' : `آخرین بازدید: ${formatLastActive(selectedUser.last_active)} `}
+                </p>
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-2 custom-scrollbar">
               <AnimatePresence initial={false}>
                 {messages.length === 0 ? (
@@ -122,7 +137,7 @@ export default function MobileChatModal({
                   </motion.div>
                 ) : (
                   messages.map((msg, i) => {
-                const isSender = msg.sender_type === 'admin' || msg.sender === 'Admin';
+                    const isSender = msg.sender_type === 'admin' || msg.sender === 'Admin';
 
                     return (
                       <motion.div
@@ -170,7 +185,6 @@ export default function MobileChatModal({
                 )}
               </AnimatePresence>
 
-              {/* Typing indicator */}
               <AnimatePresence>
                 {typingUsers.length > 0 && (
                   <motion.div
@@ -197,7 +211,6 @@ export default function MobileChatModal({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div
               className={classNames(
                 'sticky bottom-0 z-10 p-4 border-t',

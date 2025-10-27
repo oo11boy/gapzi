@@ -9,11 +9,13 @@ interface User {
   email: string;
   room_code?: string;
   newMessageCount?: number;
+  last_active?: string;
+  isOnline?: boolean;
 }
 
 interface Message {
   sender: string;
-  sender_type:string;
+  sender_type: string;
   message: string;
   session_id: string;
   timestamp: string;
@@ -53,6 +55,15 @@ export default function ChatArea({
     setTimeout(() => scrollToBottom(), 50);
   }, [messages]);
 
+  const formatLastActive = (lastActive?: string) => {
+    if (!lastActive) return 'نامشخص';
+    const date = new Date(lastActive);
+    return date.toLocaleString('fa-IR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -88,7 +99,14 @@ export default function ChatArea({
                 >
                   {selectedUser.name}
                 </h3>
-                <p className="text-xs text-green-500 font-medium">آنلاین</p>
+                <p
+                  className={classNames(
+                    'text-xs font-medium',
+                    selectedUser.isOnline ? 'text-green-500' : 'text-gray-500'
+                  )}
+                >
+                  {selectedUser.isOnline ? 'آنلاین' : `آخرین بازدید: ${formatLastActive(selectedUser.last_active)}`}
+                </p>
               </div>
             </div>
 
@@ -122,7 +140,7 @@ export default function ChatArea({
                   </motion.div>
                 ) : (
                   messages.map((msg, i) => {
-                  const isSender = msg.sender_type === 'admin' || msg.sender === 'Admin';
+                    const isSender = msg.sender_type === 'admin' || msg.sender === 'Admin';
 
                     return (
                       <motion.div

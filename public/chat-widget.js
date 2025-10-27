@@ -667,7 +667,7 @@
         localStorage.setItem(`chat_user_info_${room}`, JSON.stringify(userInfo));
 
         try {
-          const res = await fetch('http://localhost:3000/api/sessions', {
+          const res = await fetch('http://localhost:3000/api/user-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room, session_id: sessionId, name, email }),
