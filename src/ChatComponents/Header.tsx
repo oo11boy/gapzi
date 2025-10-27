@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { PlusIcon, Bars3Icon, XMarkIcon, HomeIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Bars3Icon, XMarkIcon, HomeIcon, MoonIcon, SunIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@headlessui/react';
 import { classNames } from './utils/classNames';
@@ -35,6 +35,17 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
   onClick: () => setShowSettingsModal(true),
   bg: 'bg-gray-500 hover:bg-gray-600',
 },
+    {
+  label: 'خروج',
+  icon: <ExclamationCircleIcon className="w-5 h-5" />,
+  onClick: async () => {
+                  await fetch("/api/logout", { method: "POST" });
+                  window.location.href = "/login";
+                },
+  bg: 'bg-gray-500 hover:bg-gray-600',
+},
+
+
 
   ];
 

@@ -13,6 +13,7 @@ interface User {
 
 interface Message {
   sender: string;
+  sender_type:string;
   message: string;
   session_id: string;
   timestamp: string;
@@ -121,7 +122,8 @@ export default function ChatArea({
                   </motion.div>
                 ) : (
                   messages.map((msg, i) => {
-                    const isSender = msg.sender === 'Admin';
+                  const isSender = msg.sender_type === 'admin' || msg.sender === 'Admin';
+
                     return (
                       <motion.div
                         key={`${msg.session_id}-${msg.timestamp}-${i}`}
