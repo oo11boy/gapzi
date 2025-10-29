@@ -1,26 +1,39 @@
+// app/api/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../lib/db';
-import { comparePassword, generateToken } from '../../../lib/auth';
+import pool from '@/lib/db';
+import { comparePassword, generateToken } from '@/lib/auth';
+
+interface UserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  role_id: number;
+  role: string;
+}
 
 export async function POST(req: NextRequest) {
-  const { username, password } = await req.json();
-  if (!username || !password) {
-    return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  }
-
   try {
-    const [users] = await pool.query('SELECT u.*, r.name as role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = ?', [username]);
-    const user = (users as any[])[0];
+    const { username, password } = await req.json();
+    if (!username || !password) {
+      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    }
+
+    const [rows] = await pool.query<UserRow[]>(
+      'SELECT u.*, r.name as role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = ?',
+      [username]
+    );
+
+    const user = rows[0];
     if (!user || !(await comparePassword(password, user.password_hash))) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
     const token = generateToken(user.id, user.role);
     const response = NextResponse.json({ token }, { status: 200 });
-    response.cookies.set('token', token, { httpOnly: true });
+    response.cookies.set('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
     return response;
   } catch (error) {
-    console.error(error);
+    console.error('Error during login:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

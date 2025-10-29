@@ -1,3 +1,4 @@
+// components/ChatComponents/UserList.tsx
 'use client';
 import { motion } from 'framer-motion';
 import { classNames } from './utils/classNames';
@@ -9,8 +10,9 @@ interface User {
   email: string;
   room_code?: string;
   newMessageCount?: number;
-  last_active?: string; // اضافه کردن last_active
-  isOnline?: boolean; // اضافه کردن isOnline
+  last_active?: string;
+  isOnline?: boolean;
+  hasNewMessageFlash:string;
 }
 
 interface UserListProps {
@@ -18,10 +20,10 @@ interface UserListProps {
   selectedUser: User | null;
   setSelectedUser: (user: User | null) => void;
   loadMessages: (roomCode: string, sessionId: string) => void;
-    darkMode: boolean;
+  darkMode: boolean;
 }
 
-export default function UserList({ users, selectedUser, setSelectedUser, loadMessages,darkMode }: UserListProps) {
+export default function UserList({ users, selectedUser, setSelectedUser, loadMessages, darkMode }: UserListProps) {
   const sortedUsers = [...users].sort((a, b) => {
     const aCount = a.newMessageCount || 0;
     const bCount = b.newMessageCount || 0;
@@ -29,7 +31,6 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
     return a.name.localeCompare(b.name);
   });
 
-  // تابع برای فرمت کردن زمان آخرین بازدید
   const formatLastActive = (lastActive?: string) => {
     if (!lastActive) return 'نامشخص';
     const date = new Date(lastActive);
@@ -45,10 +46,12 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
       animate={{ opacity: 1, x: 0 }}
       className="lg:col-span-1 space-y-6 w-3/12 max-lg:w-full"
     >
-      <div   className={classNames(
+      <div
+        className={classNames(
           'flex flex-col h-[70vh] p-2 lg:h-[80vh] rounded-xl overflow-hidden border',
           darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
-        )}>
+        )}
+      >
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="font-bold text-lg sm:text-xl bg-linear-to-r flex items-center gap-2 from-emerald-600 to-teal-600 dark:from-emerald-500 dark:to-teal-500 bg-clip-text text-transparent">
             <UserCircleIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
@@ -80,6 +83,7 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
                     loadMessages(user.room_code, user.session_id);
                   }
                 }}
+                data-flash={user.hasNewMessageFlash} // فقط این خط اضافه شد
                 className={classNames(
                   'group relative p-3 sm:p-4 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden flex justify-between items-center',
                   selectedUser?.session_id === user.session_id
@@ -99,7 +103,6 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
                     <span className="text-white dark:text-gray-100 font-bold text-sm sm:text-base">
                       {user.name.charAt(0).toUpperCase()}
                     </span>
-                    {/* نشانگر وضعیت آنلاین */}
                     {user.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
                     )}

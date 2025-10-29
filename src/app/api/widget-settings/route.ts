@@ -1,3 +1,4 @@
+// app/api/widget-settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
@@ -12,23 +13,23 @@ interface WidgetSettings extends RowDataPacket {
   font_family: string;
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 export async function GET(req: NextRequest) {
   const roomCode = req.nextUrl.searchParams.get('room');
   if (!roomCode) {
-    return NextResponse.json(
-      { error: 'Missing room code' },
-      { status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-    );
+    return NextResponse.json({ error: 'Missing room code' }, { status: 400, headers: corsHeaders });
   }
 
   try {
     const [rooms] = await pool.query<RowDataPacket[]>('SELECT id FROM chat_rooms WHERE room_code = ?', [roomCode]);
     const roomId = rooms[0]?.id;
     if (!roomId) {
-      return NextResponse.json(
-        { error: 'Invalid room' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-      );
+      return NextResponse.json({ error: 'Invalid room' }, { status: 404, headers: corsHeaders });
     }
 
     const [settings] = await pool.query<WidgetSettings[]>(
@@ -46,20 +47,14 @@ export async function GET(req: NextRequest) {
           welcome_message: null,
           font_family: 'Vazirmatn',
         },
-        { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+        { status: 200, headers: corsHeaders }
       );
     }
 
-    return NextResponse.json(settings[0], {
-      status: 200,
-      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' },
-    });
+    return NextResponse.json(settings[0], { status: 200, headers: corsHeaders });
   } catch (error) {
     console.error('Error fetching widget settings:', error);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-    );
+    return NextResponse.json({ error: 'Server error' }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -80,13 +75,11 @@ export async function POST(req: NextRequest) {
 
     const [existing] = await pool.query('SELECT id FROM widget_settings WHERE room_id = ?', [roomId]);
     if ((existing as any[]).length > 0) {
-      // به‌روزرسانی تنظیمات موجود
       await pool.query(
         'UPDATE widget_settings SET primary_color = ?, secondary_color = ?, chat_title = ?, placeholder_text = ?, welcome_message = ?, font_family = ? WHERE room_id = ?',
         [primary_color || '#007bff', secondary_color || '#ffffff', chat_title || 'چت زنده', placeholder_text || 'پیام خود را بنویسید...', welcome_message, font_family || 'Vazirmatn', roomId]
       );
     } else {
-      // ایجاد تنظیمات جدید
       await pool.query(
         'INSERT INTO widget_settings (room_id, primary_color, secondary_color, chat_title, placeholder_text, welcome_message, font_family) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [roomId, primary_color || '#007bff', secondary_color || '#ffffff', chat_title || 'چت زنده', placeholder_text || 'پیام خود را بنویسید...', welcome_message, font_family || 'Vazirmatn']
@@ -101,12 +94,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

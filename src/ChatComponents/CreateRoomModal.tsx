@@ -1,3 +1,4 @@
+// components/ChatComponents/CreateRoomModal.tsx
 'use client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon, PlusIcon } from '@heroicons/react/24/outline';

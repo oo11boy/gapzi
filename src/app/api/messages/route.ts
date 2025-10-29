@@ -1,5 +1,6 @@
+// app/api/messages/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../lib/db';
+import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
 
 interface Message extends RowDataPacket {
@@ -13,34 +14,36 @@ interface Message extends RowDataPacket {
   is_read: boolean;
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 export async function GET(req: NextRequest) {
   const roomCode = req.nextUrl.searchParams.get('room');
   const sessionId = req.nextUrl.searchParams.get('session_id');
 
   if (!roomCode || !sessionId) {
-    return NextResponse.json(
-      { error: 'Missing room or session_id' },
-      { status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-    );
+    return NextResponse.json({ error: 'Missing room or session_id' }, { status: 400, headers: corsHeaders });
   }
 
   try {
     const [rooms] = await pool.query<RowDataPacket[]>('SELECT id FROM chat_rooms WHERE room_code = ?', [roomCode]);
     const roomId = rooms[0]?.id;
     if (!roomId) {
-      return NextResponse.json(
-        { error: 'Invalid room' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-      );
+      return NextResponse.json({ error: 'Invalid room' }, { status: 404, headers: corsHeaders });
     }
 
-    const [messages] = await pool.query<Message[]>(
-      `SELECT id, message_id, room_id, session_id, sender_type, message, timestamp, is_read
-       FROM messages
-       WHERE room_id = ? AND (session_id = ? OR sender_type = 'admin')
-       ORDER BY timestamp ASC`,
-      [roomId, sessionId]
-    );
+    const query = `
+      SELECT id, message_id, room_id, session_id, sender_type, message, timestamp, is_read
+      FROM messages
+      WHERE room_id = ? AND session_id = ?
+      ORDER BY timestamp ASC
+    `;
+    const params = [roomId, sessionId];
+
+    const [messages] = await pool.query<Message[]>(query, params);
 
     return NextResponse.json(
       messages.map((msg) => ({
@@ -53,24 +56,14 @@ export async function GET(req: NextRequest) {
         timestamp: msg.timestamp,
         is_read: !!msg.is_read,
       })),
-      { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
+      { status: 200, headers: corsHeaders }
     );
   } catch (error) {
     console.error('Error fetching messages:', error);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }
-    );
+    return NextResponse.json({ error: 'Server error' }, { status: 500, headers: corsHeaders });
   }
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

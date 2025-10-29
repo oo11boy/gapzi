@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { PlusIcon, Bars3Icon, XMarkIcon, HomeIcon, MoonIcon, SunIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Bars3Icon, XMarkIcon, HomeIcon, MoonIcon, SunIcon, ExclamationCircleIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@headlessui/react';
 import { classNames } from './utils/classNames';
@@ -13,47 +13,40 @@ interface SidebarProps {
   setDarkMode: (value: boolean) => void;
 }
 
-export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setShowSelectSiteModal ,setShowSettingsModal}: SidebarProps) {
+export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setShowSelectSiteModal, setShowSettingsModal }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const buttons = [
+  const menuItems = [
     {
       label: 'انتخاب سایت',
-      icon: <HomeIcon className="w-5 h-5" />,
+      icon: <HomeIcon className="w-6 h-6" />,
       onClick: () => setShowSelectSiteModal(true),
-      bg: 'bg-emerald-500 hover:bg-emerald-600',
     },
     {
       label: 'ایجاد چت',
-      icon: <PlusIcon className="w-5 h-5" />,
+      icon: <PlusIcon className="w-6 h-6" />,
       onClick: () => setShowCreateRoom(true),
-      bg: 'bg-indigo-500 hover:bg-indigo-600',
     },
     {
-  label: 'تنظیمات',
-  icon: <Bars3Icon className="w-5 h-5" />,
-  onClick: () => setShowSettingsModal(true),
-  bg: 'bg-gray-500 hover:bg-gray-600',
-},
+      label: 'تنظیمات',
+      icon: <Cog6ToothIcon className="w-6 h-6" />,
+      onClick: () => setShowSettingsModal(true),
+    },
     {
-  label: 'خروج',
-  icon: <ExclamationCircleIcon className="w-5 h-5" />,
-  onClick: async () => {
-                  await fetch("/api/logout", { method: "POST" });
-                  window.location.href = "/login";
-                },
-  bg: 'bg-gray-500 hover:bg-gray-600',
-},
-
-
-
+      label: 'خروج',
+      icon: <ArrowRightOnRectangleIcon className="w-6 h-6" />,
+      onClick: async () => {
+        await fetch("/api/logout", { method: "POST" });
+        window.location.href = "/login";
+      },
+      danger: true,
+    },
   ];
 
   return (
     <>
-
-
-      <div className=" flex w-full items-center justify-between p-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg">
+      {/* هدر بالا - بدون تغییر */}
+      <div className="flex w-full items-center justify-between p-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg">
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
           <div className="p-2 bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg">
             <span className="text-white font-bold text-2xl">💬</span>
@@ -62,7 +55,6 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
         </h2>
 
         <div className="flex items-center gap-2">
-          {/* Dark Mode Switch */}
           <Switch
             checked={darkMode}
             onChange={setDarkMode}
@@ -129,6 +121,7 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
         </div>
       </div>
 
+      {/* سایدبار کشویی - شبیه تلگرام */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -141,39 +134,58 @@ export default function Header({ darkMode, setDarkMode, setShowCreateRoom, setSh
               onClick={() => setMobileOpen(false)}
             />
 
-            {/* Sidebar */}
+            {/* Sidebar - مثل تلگرام */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-xl z-50 p-4 flex flex-col space-y-4"
+              className="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col"
             >
-              {/* دکمه بستن */}
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="self-end p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-              >
-                <XMarkIcon className="w-6 h-6 text-gray-700 dark:text-gray-200" />
-              </button>
+              {/* هدر سایدبار */}
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">منوی گپ‌زی</h3>
+              </div>
 
-              {/* دکمه‌ها */}
-              {buttons.map((btn) => (
-                <motion.button
-                  key={btn.label}
-                  onClick={() => {
-                    btn.onClick();
-                    setMobileOpen(false);
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`${btn.bg} text-white py-2 rounded-xl shadow w-full flex items-center justify-center space-x-2`}
+              {/* لیست آیتم‌ها */}
+              <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                {menuItems.map((item) => (
+                  <motion.button
+                    key={item.label}
+                    onClick={() => {
+                      item.onClick();
+                      setMobileOpen(false);
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    className={classNames(
+                      'w-full flex items-center justify-between px-4 py-3 rounded-xl text-right transition-all',
+                      'hover:bg-gray-100 dark:hover:bg-gray-800',
+                      item.danger
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-gray-700 dark:text-gray-200'
+                    )}
+                  >
+                    <span className="font-medium">{item.label}</span>
+                    <div className={classNames(
+                      'text-gray-500 dark:text-gray-400',
+                      item.danger && 'text-red-500 dark:text-red-400'
+                    )}>
+                      {item.icon}
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* دکمه بستن در پایین (اختیاری) */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
                 >
-                  {btn.icon}
-                  <span>{btn.label}</span>
-                </motion.button>
-              ))}
-
+                  <XMarkIcon className="w-5 h-5" />
+                  <span>بستن منو</span>
+                </button>
+              </div>
             </motion.div>
           </>
         )}

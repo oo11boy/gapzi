@@ -1,5 +1,5 @@
+// components/ChatComponents/MobileChatModal.tsx
 'use client';
-import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import { classNames } from './utils/classNames';
@@ -32,7 +32,7 @@ interface MobileChatModalProps {
   sendMessage: () => void;
   handleTyping: () => void;
   handleBack: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement>;
   darkMode: boolean;
 }
 
@@ -48,12 +48,6 @@ export default function MobileChatModal({
   messagesEndRef,
   darkMode,
 }: MobileChatModalProps) {
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, messagesEndRef]);
-
   const formatLastActive = (lastActive?: string) => {
     if (!lastActive) return 'نامشخص';
     const date = new Date(lastActive);

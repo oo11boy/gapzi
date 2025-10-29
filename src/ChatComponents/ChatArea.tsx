@@ -1,3 +1,4 @@
+// components/ChatComponents/ChatArea.tsx
 'use client';
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,16 +44,10 @@ export default function ChatArea({
   handleTyping,
   darkMode,
 }: ChatAreaProps) {
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTimeout(() => scrollToBottom(), 50);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const formatLastActive = (lastActive?: string) => {

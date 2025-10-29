@@ -3,17 +3,26 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function Register() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [form, setForm] = useState({
+    first_name: '',
+    last_name: '',
+    username: '',
+    email: '',
+    password: ''
+  });
   const [error, setError] = useState('');
   const router = useRouter();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(form),
     });
 
     if (res.ok) {
@@ -26,26 +35,17 @@ export default function Register() {
 
   return (
     <div className="flex justify-center items-center h-screen">
-      <form onSubmit={handleSubmit} className="p-6 bg-white rounded shadow">
-        <h2 className="text-2xl mb-4">Register</h2>
-        {error && <p className="text-red-500">{error}</p>}
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="border p-2 mb-4 w-full"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="border p-2 mb-4 w-full"
-        />
-        <button type="submit" className="bg-blue-500 text-white p-2 w-full">
-          Register
-        </button>
+      <form onSubmit={handleSubmit} className="p-6 bg-white rounded shadow w-80">
+        <h2 className="text-2xl mb-4">ثبت‌نام ادمین</h2>
+        {error && <p className="text-red-500 mb-3">{error}</p>}
+
+        <input name="first_name" placeholder="نام" onChange={handleChange} className="border p-2 mb-3 w-full" />
+        <input name="last_name" placeholder="نام خانوادگی" onChange={handleChange} className="border p-2 mb-3 w-full" />
+        <input name="username" placeholder="نام کاربری" onChange={handleChange} className="border p-2 mb-3 w-full" />
+        <input name="email" type="email" placeholder="ایمیل" onChange={handleChange} className="border p-2 mb-3 w-full" />
+        <input name="password" type="password" placeholder="رمز عبور" onChange={handleChange} className="border p-2 mb-3 w-full" />
+        
+        <button type="submit" className="bg-blue-500 text-white p-2 w-full">ثبت‌نام</button>
       </form>
     </div>
   );

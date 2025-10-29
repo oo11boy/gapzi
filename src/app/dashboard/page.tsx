@@ -26,13 +26,16 @@ interface User {
   newMessageCount?: number;
   last_active?: string;
   isOnline?: boolean;
+  hasNewMessageFlash?: boolean; // جدید: برای چشمک زدن
 }
 
 interface Message {
+  message_id: string;
   sender: string;
   message: string;
   session_id: string;
   timestamp: string;
+  sender_type: 'admin' | 'guest';
 }
 
 export default function Dashboard() {
@@ -53,12 +56,45 @@ export default function Dashboard() {
   const [showSelectSiteModal, setShowSelectSiteModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default'); // جدید
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const notificationSoundRef = useRef<HTMLAudioElement | null>(null); // جدید: صدا
 
+  // ایجاد صدا یکبار
+  useEffect(() => {
+    const audio = new Audio('/sounds/notification.mp3');
+    audio.preload = 'auto';
+    notificationSoundRef.current = audio;
+  }, []);
+
+  // درخواست دسترسی نوتیفیکیشن مرورگر
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        setNotificationPermission(permission);
+      });
+    } else if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  // همگام‌سازی selectedUser با ref
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
+
+  // اسکرول خودکار به پایین
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setNewMessageAlert(false);
+  }, [messages]);
+
+  // چک کردن احراز هویت
   useEffect(() => {
     const checkAuth = async () => {
       const res = await fetch('/api/me', { credentials: 'include' });
@@ -69,6 +105,7 @@ export default function Dashboard() {
     checkAuth();
   }, []);
 
+  // ایجاد اتاق جدید
   const createRoom = async () => {
     if (!siteUrl) {
       setError('لطفاً آدرس وب‌سایت را وارد کنید');
@@ -90,12 +127,11 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.ok) {
-        const embedCode = data.embedCode || `<script src="http://localhost:3000/chat-widget.js?room=${data.room_code}"></script>`;
+        const embedCode = data.embedCode || `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${data.room_code}"></script>`;
         const newRoom = { ...data, embed_code: embedCode };
         setRooms((prev) => [...prev, newRoom]);
         setSelectedRoom(newRoom);
         sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
-
         if (newRoom.room_code) await loadUsers(newRoom.room_code);
         setShowCreateRoom(false);
         setSiteUrl('');
@@ -112,15 +148,7 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    selectedUserRef.current = selectedUser;
-  }, [selectedUser]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setNewMessageAlert(false);
-  }, [messages]);
-
+  // بارگذاری اتاق‌ها
   useEffect(() => {
     const fetchRooms = async () => {
       try {
@@ -137,7 +165,7 @@ export default function Dashboard() {
           ...room,
           embed_code:
             room.embed_code ||
-            `<script src="http://localhost:3000/chat-widget.js?room=${room.room_code}"></script>`,
+            `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${room.room_code}"></script>`,
         }));
 
         setRooms(roomsWithEmbed);
@@ -177,10 +205,11 @@ export default function Dashboard() {
     fetchRooms();
   }, []);
 
+  // اتصال Socket.io
   useEffect(() => {
     if (loading || !selectedRoom || !selectedRoom.room_code) return;
 
-    const newSocket = io('http://localhost:3000', {
+    const newSocket = io(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000', {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
@@ -189,45 +218,73 @@ export default function Dashboard() {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('✅ Socket connected:', newSocket.id);
+      console.log('Dashboard socket connected:', newSocket.id);
+      
       newSocket.emit('join_session', { room: selectedRoom.room_code, session_id: 'admin-global' });
-      // ارسال admin_connect برای به‌روزرسانی وضعیت ادمین
       newSocket.emit('admin_connect', { room: selectedRoom.room_code, adminId: 'admin-global' });
     });
 
+    // دریافت پیام جدید — با صدا، چشمک و نوتیفیکیشن
     newSocket.on('receive_message', (data) => {
-      if (data.room === selectedRoom.room_code) {
-        setMessages((prev) => {
-          const exists = prev.some(
-            (msg) =>
-              msg.timestamp === data.timestamp &&
-              msg.message === data.message &&
-              msg.session_id === data.session_id
-          );
+      if (data.room !== selectedRoom.room_code) return;
 
-          if (
-            selectedUserRef.current &&
-            data.session_id === selectedUserRef.current.session_id
-          ) {
-            return exists ? prev : [...prev, data];
-          }
+      if (data.sender_type === 'guest') {
+        // 1. پخش صدا
+        notificationSoundRef.current?.play().catch(() => {});
 
-          return prev;
-        });
-
+        // 2. نوتیفیکیشن مرورگر (فقط وقتی تب غیرفعال)
         if (
-          !selectedUserRef.current ||
-          selectedUserRef.current.session_id !== data.session_id
+          notificationPermission === 'granted' &&
+          document.hidden &&
+          selectedUserRef.current?.session_id !== data.session_id
         ) {
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.session_id === data.session_id
-                ? { ...u, newMessageCount: (u.newMessageCount || 0) + 1 }
-                : u
-            )
-          );
+          const notif = new Notification(`پیام جدید از ${data.sender}`, {
+            body: data.message,
+            icon: '/favicon.ico',
+            tag: `chat-${data.session_id}`,
+            renotify: true,
+          });
+          notif.onclick = () => {
+            window.focus();
+            const user = users.find(u => u.session_id === data.session_id);
+            if (user) handleUserSelect(user);
+          };
+        }
+
+        // 3. نمایش پیام در چت
+        if (selectedUserRef.current?.session_id === data.session_id) {
+          setMessages((prev) => {
+            const exists = prev.some(m => m.message_id === data.message_id);
+            return exists ? prev : [...prev, data];
+          });
+        }
+
+        // 4. افزایش شمارنده + فعال کردن چشمک
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.session_id === data.session_id
+              ? { 
+                  ...u, 
+                  newMessageCount: (u.newMessageCount || 0) + 1,
+                  hasNewMessageFlash: true // فعال کردن چشمک
+                }
+              : u
+          )
+        );
+
+        // هشدار کلی
+        if (!selectedUserRef.current || selectedUserRef.current.session_id !== data.session_id) {
           setNewMessageAlert(true);
         }
+
+        // غیرفعال کردن چشمک بعد از 3 ثانیه
+        setTimeout(() => {
+          setUsers(prev => prev.map(u => 
+            u.session_id === data.session_id 
+              ? { ...u, hasNewMessageFlash: false }
+              : u
+          ));
+        }, 3000);
       }
     });
 
@@ -239,7 +296,6 @@ export default function Dashboard() {
       }
     });
 
-    // مدیریت رویداد user_status
     newSocket.on('user_status', ({ session_id, last_active, isOnline }) => {
       setUsers((prev) =>
         prev.map((u) =>
@@ -248,30 +304,20 @@ export default function Dashboard() {
             : u
         )
       );
-
-      // به‌روزرسانی selectedUser اگر تغییر کند
-      setSelectedUser((prev) =>
-        prev && prev.session_id === session_id
-          ? { ...prev, last_active, isOnline }
-          : prev
-      );
     });
 
     newSocket.on('connect_error', () => setError('اتصال Socket با مشکل مواجه شد'));
-    newSocket.on('disconnect', () => console.log('❌ Socket disconnected'));
+    newSocket.on('disconnect', () => console.log('Socket disconnected'));
 
     return () => {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [selectedRoom, loading]);
+  }, [selectedRoom, loading, notificationPermission]);
 
+  // بارگذاری کاربران
   const loadUsers = async (roomCode: string) => {
-    if (!roomCode) {
-      console.warn('No room code provided, skipping loadUsers');
-      setError('لطفاً یک اتاق انتخاب کنید');
-      return;
-    }
+    if (!roomCode) return;
     try {
       const res = await fetch(`/api/users?room=${roomCode}`, { credentials: 'include' });
       const data = await res.json();
@@ -280,6 +326,7 @@ export default function Dashboard() {
           ...user,
           room_code: roomCode,
           newMessageCount: user.newMessageCount || 0,
+          hasNewMessageFlash: false,
         }));
         setUsers(usersList);
 
@@ -297,6 +344,7 @@ export default function Dashboard() {
     }
   };
 
+  // بارگذاری پیام‌ها
   const loadMessages = async (roomCode: string, sessionId: string) => {
     try {
       const res = await fetch(`/api/messages?room=${roomCode}&session_id=${sessionId}`);
@@ -311,7 +359,7 @@ export default function Dashboard() {
 
       setUsers((prev) =>
         prev.map((u) =>
-          u.session_id === sessionId ? { ...u, newMessageCount: 0 } : u
+          u.session_id === sessionId ? { ...u, newMessageCount: 0, hasNewMessageFlash: false } : u
         )
       );
     } catch {
@@ -319,25 +367,35 @@ export default function Dashboard() {
     }
   };
 
+  // انتخاب کاربر
+  const handleUserSelect = async (user: User) => {
+    setSelectedUser(user);
+    await loadMessages(selectedRoom!.room_code, user.session_id);
+    setNewMessageAlert(false);
+  };
+
+  // ارسال پیام ادمین
   const sendMessage = () => {
-    if (!message || !selectedUser || !socketRef.current) return;
+    if (!message.trim() || !selectedUser || !socketRef.current) return;
+
     const msgData = {
-      room: selectedUser.room_code,
-      message,
+      room: selectedRoom!.room_code,
+      message: message.trim(),
       sender: 'Admin',
       sender_type: 'admin',
       session_id: selectedUser.session_id,
       timestamp: new Date().toISOString(),
     };
+
     socketRef.current.emit('send_message', msgData);
-    setMessages((prev) => [...prev, msgData]);
+    setMessages((prev) => [...prev, { ...msgData, message_id: crypto.randomUUID() }]);
     setMessage('');
   };
 
   const handleTyping = () => {
     if (socketRef.current && selectedUser) {
       socketRef.current.emit('user_typing', {
-        room: selectedUser.room_code,
+        room: selectedRoom!.room_code,
         name: 'Admin',
         session_id: selectedUser.session_id,
       });
@@ -364,8 +422,8 @@ export default function Dashboard() {
       className={classNames(
         'min-h-screen font-sans transition-all duration-300',
         darkMode
-          ? 'bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 text-white'
-          : 'bg-linear-to-br from-blue-50 via-white to-indigo-50 text-gray-900'
+          ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white'
+          : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-gray-900'
       )}
       dir="rtl"
     >
@@ -383,9 +441,10 @@ export default function Dashboard() {
           <UserList
             users={users}
             selectedUser={selectedUser}
-            setSelectedUser={setSelectedUser}
+            setSelectedUser={handleUserSelect}
             loadMessages={loadMessages}
             darkMode={darkMode}
+            newMessageAlert={newMessageAlert}
           />
           <ChatArea
             selectedUser={selectedUser}
@@ -399,6 +458,7 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
       <MobileChatModal
         selectedUser={selectedUser}
         messages={messages}
@@ -411,6 +471,7 @@ export default function Dashboard() {
         messagesEndRef={messagesEndRef}
         darkMode={darkMode}
       />
+
       <CreateRoomModal
         showCreateRoom={showCreateRoom}
         setShowCreateRoom={setShowCreateRoom}
@@ -418,6 +479,7 @@ export default function Dashboard() {
         setSiteUrl={setSiteUrl}
         createRoom={createRoom}
       />
+
       <SelectSiteModal
         showSelectSiteModal={showSelectSiteModal}
         setShowSelectSiteModal={setShowSelectSiteModal}
@@ -429,11 +491,13 @@ export default function Dashboard() {
         loadUsers={loadUsers}
         darkMode={darkMode}
       />
+
       <EmbedCodeModal
         showEmbedModal={showEmbedModal}
         setShowEmbedModal={setShowEmbedModal}
         embedCode={embedCode}
       />
+
       <SettingsModal
         showSettingsModal={showSettingsModal}
         setShowSettingsModal={setShowSettingsModal}
@@ -441,7 +505,15 @@ export default function Dashboard() {
         setDarkMode={setDarkMode}
       />
 
+      {/* انیمیشن چشمک فقط برای hasNewMessageFlash */}
       <style jsx global>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        [data-has-new-message-flash="true"] {
+          animation: pulse 1.5s ease-in-out infinite;
+        }
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }

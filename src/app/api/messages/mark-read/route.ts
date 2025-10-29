@@ -1,8 +1,8 @@
+// app/api/messages/mark-read/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { RowDataPacket } from 'mysql2';
 import { verifyToken } from '@/lib/auth';
 import pool from '@/lib/db';
-
 
 interface Room extends RowDataPacket {
   id: number;

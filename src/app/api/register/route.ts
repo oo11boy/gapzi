@@ -1,32 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../lib/db';
-import { hashPassword } from '../../../lib/auth';
+import pool from '@/lib/db';
+import { hashPassword } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
-  const { username, password, role } = await req.json();
-  if (!username || !password) {
-    return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  }
-
   try {
-    const [existing] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
-    if ((existing as any[]).length > 0) {
-      return NextResponse.json({ error: 'User exists' }, { status: 409 });
+    const { first_name, last_name, username, email, password } = await req.json(); // role حذف شد
+
+    if (!first_name || !last_name || !username || !email || !password) {
+      return NextResponse.json({ error: 'تمام فیلدها الزامی هستند' }, { status: 400 });
     }
 
-    const [roles] = await pool.query('SELECT id FROM roles WHERE name = ?', [role || 'user']);
-    const roleId = (roles as any[])[0]?.id || 2; // Default to user role
+    // بررسی تکراری نبودن ایمیل یا نام کاربری
+    const [existing] = await pool.query(
+      'SELECT * FROM users WHERE username = ? OR email = ?',
+      [username, email]
+    );
+    if ((existing as any[]).length > 0) {
+      return NextResponse.json({ error: 'کاربر با این نام کاربری یا ایمیل وجود دارد' }, { status: 409 });
+    }
+
+    // همیشه role_id = 1 استفاده می‌شود
+    const roleId = 1;
 
     const hash = await hashPassword(password);
-    await pool.query('INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)', [
-      username,
-      hash,
-      roleId,
-    ]);
+    await pool.query(
+      'INSERT INTO users (first_name, last_name, email, username, password_hash, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [first_name, last_name, email, username, hash, roleId]
+    );
 
-    return NextResponse.json({ message: 'Registered' }, { status: 201 });
+    return NextResponse.json({ message: 'ثبت‌نام با موفقیت انجام شد' }, { status: 201 });
   } catch (error) {
-    console.error(error);
+    console.error('Error during registration:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
