@@ -26,12 +26,18 @@ interface UserListProps {
 }
 
 export default function UserList({ users, selectedUser, setSelectedUser, loadMessages, darkMode }: UserListProps) {
-  const sortedUsers = [...users].sort((a, b) => {
-    const aCount = a.newMessageCount || 0;
-    const bCount = b.newMessageCount || 0;
-    if (aCount !== bCount) return bCount - aCount;
-    return a.name.localeCompare(b.name);
-  });
+const sortedUsers = [...users].sort((a, b) => {
+  // اولویت اول: کاربران آنلاین
+  if ((a.isOnline ?? false) && !(b.isOnline ?? false)) return -1;
+  if (!(a.isOnline ?? false) && (b.isOnline ?? false)) return 1;
+
+  // اولویت دوم: جدیدترین فعالیت (last_active)
+  const timeA = a.last_active ? new Date(a.last_active).getTime() : 0;
+  const timeB = b.last_active ? new Date(b.last_active).getTime() : 0;
+
+  // جدیدترین اول (نزولی)
+  return timeB - timeA;
+});
 
   const formatLastActive = (lastActive?: string) => {
     if (!lastActive) return 'نامشخص';

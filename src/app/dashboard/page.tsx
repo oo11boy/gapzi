@@ -252,24 +252,42 @@ newSocket.on("receive_message", (data) => {
   if (data.sender_type === "guest") {
     const targetSessionId = data.session_id;
 
-    // 1. اگر کاربر جدیده → اضافه کن
-    const userExists = users.some((u) => u.session_id === targetSessionId);
-    if (!userExists) {
+    // همیشه کاربر را با session_id آپدیت کن (حتی اگر وجود داشته باشد)
+    setUsers((prev) => {
+      const existingIndex = prev.findIndex((u) => u.session_id === targetSessionId);
+
+      // اگر کاربر وجود دارد → آپدیت کن
+      if (existingIndex !== -1) {
+        const updatedUsers = [...prev];
+        updatedUsers[existingIndex] = {
+          ...updatedUsers[existingIndex],
+          name: data.sender, // ممکن است نام تغییر کند
+          last_active: new Date().toISOString(),
+          isOnline: true,
+          newMessageCount:
+            selectedUserRef.current?.session_id === targetSessionId
+              ? 0
+              : (updatedUsers[existingIndex].newMessageCount || 0) + 1,
+          hasNewMessageFlash: true,
+        };
+        return updatedUsers;
+      }
+
+      // اگر کاربر جدید است → اضافه کن
       const newUser: User = {
         session_id: targetSessionId,
         name: data.sender,
-        email: "", // اگر ایمیل داری از سرور بگیر
+        email: "",
         room_code: data.room,
-        newMessageCount: 1,
+        newMessageCount: selectedUserRef.current?.session_id === targetSessionId ? 0 : 1,
         hasNewMessageFlash: true,
         isOnline: true,
         last_active: new Date().toISOString(),
       };
+      return [...prev, newUser];
+    });
 
-      setUsers((prev) => [...prev, newUser]);
-    }
-
-    // 2. صدا، نوتیفیکیشن، نمایش پیام و ...
+    // --- بخش‌های دیگر (صدا، نوتیفیکیشن، پیام) ---
     notificationSoundRef.current?.play().catch(() => {});
 
     if (
@@ -294,6 +312,7 @@ newSocket.on("receive_message", (data) => {
       };
     }
 
+    // اضافه کردن پیام فقط اگر کاربر انتخاب شده باشد
     if (selectedUserRef.current?.session_id === targetSessionId) {
       setMessages((prev) => {
         const exists = prev.some((m) => m.message_id === data.message_id);
@@ -301,21 +320,7 @@ newSocket.on("receive_message", (data) => {
       });
     }
 
-    // 3. افزایش شمارنده برای کاربر (چه جدید چه قدیمی)
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.session_id === targetSessionId
-          ? {
-              ...u,
-              newMessageCount: (u.newMessageCount || 0) + (userExists ? 1 : 0),
-              hasNewMessageFlash: true,
-              last_active: new Date().toISOString(),
-              isOnline: true,
-            }
-          : u
-      )
-    );
-
+    // هشدار پیام جدید فقط اگر کاربر انتخاب نشده باشد
     if (
       !selectedUserRef.current ||
       selectedUserRef.current.session_id !== targetSessionId
@@ -323,6 +328,7 @@ newSocket.on("receive_message", (data) => {
       setNewMessageAlert(true);
     }
 
+    // حذف چشمک بعد از 3 ثانیه
     setTimeout(() => {
       setUsers((prev) =>
         prev.map((u) =>
@@ -334,7 +340,6 @@ newSocket.on("receive_message", (data) => {
     }, 3000);
   }
 });
-
     newSocket.on("user_typing", (data) => {
       if (data.session_id === selectedUserRef.current?.session_id) {
         setTypingUsers([data.name]);
@@ -343,13 +348,15 @@ newSocket.on("receive_message", (data) => {
       }
     });
 
-    newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.session_id === session_id ? { ...u, last_active, isOnline } : u
-        )
-      );
-    });
+newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
+  setUsers((prev) =>
+    prev.map((u) =>
+      u.session_id === session_id
+        ? { ...u, last_active, isOnline }
+        : u
+    )
+  );
+});
 
     newSocket.on("connect_error", () =>
       setError("اتصال Socket با مشکل مواجه شد")
@@ -371,13 +378,17 @@ newSocket.on("receive_message", (data) => {
       });
       const data = await res.json();
       if (res.ok) {
-        const usersList = data.map((user: User) => ({
-          ...user,
-          room_code: roomCode,
-          newMessageCount: user.newMessageCount || 0,
-          hasNewMessageFlash: false,
-        }));
-        setUsers(usersList);
+    const usersList = data.map((user: User) => ({
+  ...user,
+  room_code: roomCode,
+  newMessageCount: user.newMessageCount || 0,
+  hasNewMessageFlash: false,
+}));
+// حذف کاربران تکراری بر اساس session_id
+const uniqueUsers = usersList.filter((user: { session_id: any; }, index: any, self: any[]) =>
+  index === self.findIndex((u: { session_id: any; }) => u.session_id === user.session_id)
+);
+   setUsers(uniqueUsers)
 
         if (socketRef.current) {
           socketRef.current.emit("join_session", {
