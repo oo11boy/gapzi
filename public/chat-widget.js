@@ -1,3 +1,4 @@
+
 (function () {
   console.log('Chat widget script loaded');
 
@@ -27,7 +28,7 @@
       const response = await fetch(`http://localhost:3000/api/widget-settings?room=${room}`, {
         headers: { 'Content-Type': 'application/json' },
       });
-      if (!response.ok) throw new Error(`HTTP error ${response.status}: Failed to fetch widget settings`);
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       return await response.json();
     } catch (error) {
       console.error('Error fetching widget settings:', error.message);
@@ -301,6 +302,9 @@
         border-radius: 8px;
         font-size: 14px;
         outline: none;
+        resize: none;
+        min-height: 40px;
+        max-height: 100px;
       }
 
       #message-input:focus {
@@ -398,7 +402,7 @@
         </div>
         <div id="chat-typing"></div>
         <div id="chat-input-container">
-          <input id="message-input" type="text" placeholder="${settings.placeholder_text}">
+          <textarea id="message-input" placeholder="${settings.placeholder_text}"></textarea>
           <button id="send-message">ارسال</button>
         </div>
       </div>
@@ -426,9 +430,7 @@
         const response = await fetch(`http://localhost:3000/api/users?room=${room}&widget=true`, {
           headers: { 'Content-Type': 'application/json' },
         });
-        if (!response.ok) {
-          throw new Error(`HTTP error ${response.status}: Failed to fetch admin status`);
-        }
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const users = await response.json();
         const lastActive = users[0]?.last_active;
         if (lastActive) {
@@ -445,16 +447,16 @@
           }
         } else {
           adminStatus.textContent = 'آخرین بازدید به تازگی';
-          adminStatus.style.color = lightenColor(settings.secondary_color, 20);
+          adminStatus.className = 'offline';
         }
       } catch (error) {
         console.error('Error fetching admin status:', error.message);
         adminStatus.textContent = 'آخرین بازدید به تازگی';
-        adminStatus.style.color = lightenColor(settings.secondary_color, 20);
+        adminStatus.className = 'offline';
       }
     }
 
-    // باز کردن ویجت و ریست تعداد پیام‌های خوانده‌نشده
+    // باز کردن ویجت
     chatButton.onclick = () => {
       chatContainer.classList.add('open');
       chatButton.classList.add('hidden');
@@ -488,7 +490,7 @@
         </div>
         <div id="chat-typing"></div>
         <div id="chat-input-container">
-          <input id="message-input" type="text" placeholder="${settings.placeholder_text}">
+          <textarea id="message-input" placeholder="${settings.placeholder_text}"></textarea>
           <button id="send-message">ارسال</button>
         </div>
       `;
@@ -497,7 +499,6 @@
       const input = document.getElementById('message-input');
       const button = document.getElementById('send-message');
       const closeChat = document.getElementById('close-chat');
-      const typingIndicator = document.getElementById('chat-typing');
       const adminStatus = document.getElementById('admin-status');
 
       closeChat.onclick = () => {
@@ -505,26 +506,45 @@
         chatButton.classList.remove('hidden');
       };
 
+      // تنظیم ارتفاع خودکار textarea
+      input.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+      });
+
+      // ارسال با Enter
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          button.click();
+        }
+      });
+
       // بارگذاری پیام‌های قبلی
       fetch(`http://localhost:3000/api/messages?room=${room}&session_id=${sessionId}`)
         .then((res) => {
-          if (!res.ok) throw new Error(`HTTP error ${res.status}: Failed to fetch messages`);
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           return res.json();
         })
         .then((messages) => {
-          messagesDiv.innerHTML = settings.welcome_message ? `<div class="message admin">${settings.welcome_message}</div>` : '';
+          messagesDiv.innerHTML = settings.welcome_message 
+            ? `<div class="message admin">${settings.welcome_message}</div>` 
+            : '';
+
           messages.forEach((msg) => {
-            const p = document.createElement('div');
-            p.className = `message ${msg.sender_type === 'admin' ? 'admin' : 'user'}`;
-            p.innerHTML = `
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${msg.sender_type === 'admin' ? 'admin' : 'user'}`;
+            messageElement.dataset.messageId = msg.message_id;
+            messageElement.innerHTML = `
               <div>${msg.message}</div>
               <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString('fa-IR', {
                 hour: '2-digit',
                 minute: '2-digit',
               })}</div>
             `;
-            messagesDiv.appendChild(p);
+            messagesDiv.appendChild(messageElement);
           });
+
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
         })
         .catch((err) => console.error('Failed to load messages:', err.message));
@@ -541,111 +561,77 @@
         setupSocket();
       }
 
-function setupSocket() {
-  if (!window.chatSocket) {
-    window.chatSocket = io('http://localhost:3000', {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
-    });
-window.chatSocket.on('admin_status', (status) => {
-  console.log('admin_status received:', status);
-  const adminStatusEl = document.getElementById('admin-status');
-  if (!adminStatusEl) return;
+      function setupSocket() {
+        if (!window.chatSocket) {
+          window.chatSocket = io('http://localhost:3000', {
+            transports: ['websocket', 'polling'],
+            timeout: 20000,
+          });
 
-  if (status.isOnline) {
-    adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
-    adminStatusEl.className = 'online';
-  } else {
-    adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
-    adminStatusEl.className = 'offline';
-  }
-});
-// بعد از اتصال socket
-window.chatSocket.on('connect', () => {
-  console.log('Widget socket connected');
-  window.chatSocket.emit('join_session', { room, session_id: sessionId });
+          window.chatSocket.on('connect', () => {
+            console.log('Widget socket connected');
+            window.chatSocket.emit('join_session', { room, session_id: sessionId });
+          });
 
-  // درخواست وضعیت ادمین
-  fetch(`http://localhost:3000/api/users?room=${room}&widget=true`)
-    .then(res => res.json())
-    .then(data => {
-      const adminStatusEl = document.getElementById('admin-status');
-      if (data.length > 0 && data[0].last_active) {
-        const diff = (Date.now() - new Date(data[0].last_active).getTime()) / 60000;
-        if (diff < 10) {
-          adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
-          adminStatusEl.className = 'online';
-        } else {
-          adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
-          adminStatusEl.className = 'offline';
+          window.chatSocket.on('admin_status', (status) => {
+            const adminStatusEl = document.getElementById('admin-status');
+            if (!adminStatusEl) return;
+
+            if (status.isOnline) {
+              adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
+              adminStatusEl.className = 'online';
+            } else {
+              adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
+              adminStatusEl.className = 'offline';
+            }
+          });
+
+          window.chatSocket.on('receive_message', (data) => {
+            if (data.room !== room || data.session_id !== sessionId) return;
+
+            const existingMessage = messagesDiv.querySelector(`[data-message-id="${data.message_id}"]`);
+            if (existingMessage) return;
+
+            const p = document.createElement('div');
+            p.className = `message ${data.sender_type === 'admin' ? 'admin' : 'user'}`;
+            p.dataset.messageId = data.message_id;
+            p.innerHTML = `
+              <div>${data.message}</div>
+              <div class="message-time">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}</div>
+            `;
+            messagesDiv.appendChild(p);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            if (!chatContainer.classList.contains('open') && data.sender_type === 'admin') {
+              unreadCount++;
+              updateUnreadBadge();
+            }
+          });
         }
-      } else {
-        adminStatusEl.textContent = 'آخرین بازدید به تازگی';
-        adminStatusEl.className = 'offline';
+
+        // ارسال پیام
+        button.onclick = () => {
+          const msg = input.value.trim();
+          if (msg && window.chatSocket) {
+            window.chatSocket.emit('send_message', {
+              room,
+              message: msg,
+              sender: userInfo.name,
+              sender_type: 'guest',
+              session_id: sessionId,
+              timestamp: new Date().toISOString(),
+            });
+            input.value = '';
+            input.style.height = 'auto';
+          }
+        };
       }
-    })
-    .catch(() => {
-      const adminStatusEl = document.getElementById('admin-status');
-      adminStatusEl.textContent = 'آخرین بازدید به تازگی';
-      adminStatusEl.className = 'offline';
-    });
-});
-
-    window.chatSocket.on('receive_message', (data) => {
-      console.log('receive_message:', data);
-
-      // فقط پیام‌های این room
-      if (data.room !== room) return;
-
-      // فقط پیام‌های مربوط به session_id خودش
-      if (data.session_id === sessionId) {
-        const p = document.createElement('div');
-        p.className = `message ${data.sender_type === 'admin' ? 'admin' : 'user'}`;
-        p.innerHTML = `
-          <div>${data.message}</div>
-          <div class="message-time">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}</div>
-        `;
-        messagesDiv.appendChild(p);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-        if (!chatContainer.classList.contains('open') && data.sender_type === 'admin') {
-          unreadCount++;
-          updateUnreadBadge();
-        }
-      }
-    });
-
-    // بقیه eventها...
-  }
-
-  // ارسال پیام
-  button.onclick = () => {
-    const msg = input.value.trim();
-    if (msg && window.chatSocket) {
-      window.chatSocket.emit('send_message', {
-        room,
-        message: msg,
-        sender: userInfo.name,
-        sender_type: 'guest',
-        session_id: sessionId,
-        timestamp: new Date().toISOString(),
-      });
-      input.value = '';
-    }
-  };
-}
-
-      // به‌روزرسانی دوره‌ای فقط در صورت باز بودن ویجت
-      setInterval(() => {
-        if (chatContainer.classList.contains('open')) {
-          updateAdminStatus();
-        }
-      }, 60000);
     }
 
+    // فرم احراز هویت
     if (!isAuthenticated) {
       chatContainer.innerHTML = `
         <div id="chat-header">
@@ -685,9 +671,7 @@ window.chatSocket.on('connect', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room, session_id: sessionId, name, email }),
           });
-          if (!res.ok) {
-            throw new Error(`HTTP error ${res.status}: Failed to save session`);
-          }
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           isAuthenticated = true;
           initChatUI();
           chatContainer.classList.add('open');
@@ -703,5 +687,12 @@ window.chatSocket.on('connect', () => {
 
     updateUnreadBadge();
     updateAdminStatus();
+
+    // به‌روزرسانی دوره‌ای وضعیت ادمین
+    setInterval(() => {
+      if (chatContainer.classList.contains('open')) {
+        updateAdminStatus();
+      }
+    }, 60000);
   })();
 })();

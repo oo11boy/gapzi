@@ -246,72 +246,94 @@ const messagesEndRef = useRef<HTMLDivElement>(null!);
     });
 
     // دریافت پیام جدید — با صدا، چشمک و نوتیفیکیشن
-    newSocket.on("receive_message", (data) => {
-      if (data.room !== selectedRoom.room_code) return;
+newSocket.on("receive_message", (data) => {
+  if (data.room !== selectedRoom.room_code) return;
 
-      if (data.sender_type === "guest") {
-        // 1. پخش صدا
-        notificationSoundRef.current?.play().catch(() => {});
+  if (data.sender_type === "guest") {
+    const targetSessionId = data.session_id;
 
-        // 2. نوتیفیکیشن مرورگر (فقط وقتی تب غیرفعال)
-        if (
-          notificationPermission === "granted" &&
-          document.hidden &&
-          selectedUserRef.current?.session_id !== data.session_id
-        ) {
-          const notif = new Notification(`پیام جدید از ${data.sender}`, {
-            body: data.message,
-            icon: "/favicon.ico",
-            tag: `chat-${data.session_id}`,
-          });
-          notif.onclick = () => {
-            window.focus();
-            const user = users.find((u) => u.session_id === data.session_id);
-            if (user) handleUserSelect(user);
-          };
-        }
+    // 1. اگر کاربر جدیده → اضافه کن
+    const userExists = users.some((u) => u.session_id === targetSessionId);
+    if (!userExists) {
+      const newUser: User = {
+        session_id: targetSessionId,
+        name: data.sender,
+        email: "", // اگر ایمیل داری از سرور بگیر
+        room_code: data.room,
+        newMessageCount: 1,
+        hasNewMessageFlash: true,
+        isOnline: true,
+        last_active: new Date().toISOString(),
+      };
 
-        // 3. نمایش پیام در چت
-        if (selectedUserRef.current?.session_id === data.session_id) {
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.message_id === data.message_id);
-            return exists ? prev : [...prev, data];
-          });
-        }
+      setUsers((prev) => [...prev, newUser]);
+    }
 
-        // 4. افزایش شمارنده + فعال کردن چشمک
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.session_id === data.session_id
-              ? {
-                  ...u,
-                  newMessageCount: (u.newMessageCount || 0) + 1,
-                  hasNewMessageFlash: true, // فعال کردن چشمک
-                }
-              : u
-          )
-        );
+    // 2. صدا، نوتیفیکیشن، نمایش پیام و ...
+    notificationSoundRef.current?.play().catch(() => {});
 
-        // هشدار کلی
-        if (
-          !selectedUserRef.current ||
-          selectedUserRef.current.session_id !== data.session_id
-        ) {
-          setNewMessageAlert(true);
-        }
+    if (
+      notificationPermission === "granted" &&
+      document.hidden &&
+      selectedUserRef.current?.session_id !== targetSessionId
+    ) {
+      const notif = new Notification(`پیام جدید از ${data.sender}`, {
+        body: data.message,
+        icon: "/favicon.ico",
+        tag: `chat-${targetSessionId}`,
+      });
+      notif.onclick = () => {
+        window.focus();
+        const user = users.find((u) => u.session_id === targetSessionId) || {
+          session_id: targetSessionId,
+          name: data.sender,
+          email: "",
+          room_code: data.room,
+        };
+        handleUserSelect(user as User);
+      };
+    }
 
-        // غیرفعال کردن چشمک بعد از 3 ثانیه
-        setTimeout(() => {
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.session_id === data.session_id
-                ? { ...u, hasNewMessageFlash: false }
-                : u
-            )
-          );
-        }, 3000);
-      }
-    });
+    if (selectedUserRef.current?.session_id === targetSessionId) {
+      setMessages((prev) => {
+        const exists = prev.some((m) => m.message_id === data.message_id);
+        return exists ? prev : [...prev, data];
+      });
+    }
+
+    // 3. افزایش شمارنده برای کاربر (چه جدید چه قدیمی)
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.session_id === targetSessionId
+          ? {
+              ...u,
+              newMessageCount: (u.newMessageCount || 0) + (userExists ? 1 : 0),
+              hasNewMessageFlash: true,
+              last_active: new Date().toISOString(),
+              isOnline: true,
+            }
+          : u
+      )
+    );
+
+    if (
+      !selectedUserRef.current ||
+      selectedUserRef.current.session_id !== targetSessionId
+    ) {
+      setNewMessageAlert(true);
+    }
+
+    setTimeout(() => {
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.session_id === targetSessionId
+            ? { ...u, hasNewMessageFlash: false }
+            : u
+        )
+      );
+    }, 3000);
+  }
+});
 
     newSocket.on("user_typing", (data) => {
       if (data.session_id === selectedUserRef.current?.session_id) {
