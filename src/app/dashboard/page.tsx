@@ -1,16 +1,17 @@
-'use client';
-import ChatArea from '@/ChatComponents/ChatArea';
-import CreateRoomModal from '@/ChatComponents/CreateRoomModal';
-import EmbedCodeModal from '@/ChatComponents/EmbedCodeModal';
-import ErrorAlert from '@/ChatComponents/ErrorAlert';
-import Header from '@/ChatComponents/Header';
-import MobileChatModal from '@/ChatComponents/MobileChatModal';
-import SelectSiteModal from '@/ChatComponents/SelectSiteModal';
-import SettingsModal from '@/ChatComponents/SettingsModal';
-import UserList from '@/ChatComponents/UserList';
-import { classNames } from '@/ChatComponents/utils/classNames';
-import { useState, useEffect, useRef } from 'react';
-import io, { Socket } from 'socket.io-client';
+"use client";
+import ChatArea from "@/ChatComponents/ChatArea";
+import CreateRoomModal from "@/ChatComponents/CreateRoomModal";
+import EmbedCodeModal from "@/ChatComponents/EmbedCodeModal";
+import ErrorAlert from "@/ChatComponents/ErrorAlert";
+import Header from "@/ChatComponents/Header";
+
+import MobileChatModal from "@/ChatComponents/MobileChatModal";
+import SelectSiteModal from "@/ChatComponents/SelectSiteModal";
+
+import UserList from "@/ChatComponents/UserList";
+import { classNames } from "@/ChatComponents/utils/classNames";
+import { useState, useEffect, useRef } from "react";
+import io, { Socket } from "socket.io-client";
 
 interface Room {
   room_code: string;
@@ -35,7 +36,7 @@ interface Message {
   message: string;
   session_id: string;
   timestamp: string;
-  sender_type: 'admin' | 'guest';
+  sender_type: "admin" | "guest";
 }
 
 export default function Dashboard() {
@@ -43,10 +44,10 @@ export default function Dashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [message, setMessage] = useState('');
-  const [embedCode, setEmbedCode] = useState('');
-  const [siteUrl, setSiteUrl] = useState('');
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState("");
+  const [embedCode, setEmbedCode] = useState("");
+  const [siteUrl, setSiteUrl] = useState("");
+  const [error, setError] = useState("");
   const [socket, setSocket] = useState<Socket | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [newMessageAlert, setNewMessageAlert] = useState(false);
@@ -56,10 +57,16 @@ export default function Dashboard() {
   const [showSelectSiteModal, setShowSelectSiteModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default'); // جدید
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission>("default"); // جدید
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    fullName: string;
+    username: string;
+    initials: string;
+    isOnline: boolean;
+  } | null>(null);
+const messagesEndRef = useRef<HTMLDivElement>(null!);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
@@ -67,18 +74,18 @@ export default function Dashboard() {
 
   // ایجاد صدا یکبار
   useEffect(() => {
-    const audio = new Audio('/sounds/notification.mp3');
-    audio.preload = 'auto';
+    const audio = new Audio("/sounds/notification.mp3");
+    audio.preload = "auto";
     notificationSoundRef.current = audio;
   }, []);
 
   // درخواست دسترسی نوتیفیکیشن مرورگر
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then(permission => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().then((permission) => {
         setNotificationPermission(permission);
       });
-    } else if ('Notification' in window) {
+    } else if ("Notification" in window) {
       setNotificationPermission(Notification.permission);
     }
   }, []);
@@ -90,16 +97,16 @@ export default function Dashboard() {
 
   // اسکرول خودکار به پایین
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     setNewMessageAlert(false);
   }, [messages]);
 
   // چک کردن احراز هویت
   useEffect(() => {
     const checkAuth = async () => {
-      const res = await fetch('/api/me', { credentials: 'include' });
+      const res = await fetch("/api/me", { credentials: "include" });
       if (!res.ok) {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
     };
     checkAuth();
@@ -108,41 +115,43 @@ export default function Dashboard() {
   // ایجاد اتاق جدید
   const createRoom = async () => {
     if (!siteUrl) {
-      setError('لطفاً آدرس وب‌سایت را وارد کنید');
+      setError("لطفاً آدرس وب‌سایت را وارد کنید");
       return;
     }
     if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl)) {
-      setError('لطفاً یک URL معتبر وارد کنید (مانند https://example.com)');
+      setError("لطفاً یک URL معتبر وارد کنید (مانند https://example.com)");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ site_url: siteUrl }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        const embedCode = data.embedCode || `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${data.room_code}"></script>`;
+        const embedCode =
+          data.embedCode ||
+          `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${data.room_code}"></script>`;
         const newRoom = { ...data, embed_code: embedCode };
         setRooms((prev) => [...prev, newRoom]);
         setSelectedRoom(newRoom);
-        sessionStorage.setItem('selectedRoom', JSON.stringify(newRoom));
+        sessionStorage.setItem("selectedRoom", JSON.stringify(newRoom));
         if (newRoom.room_code) await loadUsers(newRoom.room_code);
         setShowCreateRoom(false);
-        setSiteUrl('');
+        setSiteUrl("");
         setEmbedCode(embedCode);
         setShowEmbedModal(true);
       } else {
-        setError(data.error || 'ایجاد اتاق موفقیت‌آمیز نبود');
+        setError(data.error || "ایجاد اتاق موفقیت‌آمیز نبود");
       }
     } catch (err) {
       console.error(err);
-      setError('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
+      setError("خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.");
     } finally {
       setLoading(false);
     }
@@ -153,11 +162,13 @@ export default function Dashboard() {
     const fetchRooms = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/rooms', { credentials: 'include' });
+        const res = await fetch("/api/rooms", { credentials: "include" });
         const data = await res.json();
 
         if (res.status === 403) {
-          setError('دسترسی غیرمجاز: فقط ادمین‌ها می‌توانند اتاق‌ها را مشاهده کنند');
+          setError(
+            "دسترسی غیرمجاز: فقط ادمین‌ها می‌توانند اتاق‌ها را مشاهده کنند"
+          );
           return;
         }
 
@@ -176,7 +187,7 @@ export default function Dashboard() {
           return;
         }
 
-        const savedRoom = sessionStorage.getItem('selectedRoom');
+        const savedRoom = sessionStorage.getItem("selectedRoom");
         let roomToSelect: Room | null = null;
 
         if (savedRoom) {
@@ -187,16 +198,17 @@ export default function Dashboard() {
           if (foundRoom) roomToSelect = foundRoom;
         }
 
-        if (!roomToSelect) roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
+        if (!roomToSelect)
+          roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
 
         setSelectedRoom(roomToSelect);
-        sessionStorage.setItem('selectedRoom', JSON.stringify(roomToSelect));
+        sessionStorage.setItem("selectedRoom", JSON.stringify(roomToSelect));
 
         if (roomToSelect?.room_code) {
           await loadUsers(roomToSelect.room_code);
         }
       } catch (error) {
-        setError('بارگذاری اتاق‌ها موفقیت‌آمیز نبود');
+        setError("بارگذاری اتاق‌ها موفقیت‌آمیز نبود");
       } finally {
         setLoading(false);
       }
@@ -209,44 +221,52 @@ export default function Dashboard() {
   useEffect(() => {
     if (loading || !selectedRoom || !selectedRoom.room_code) return;
 
-    const newSocket = io(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000', {
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-    });
+    const newSocket = io(
+      process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000",
+      {
+        transports: ["websocket", "polling"],
+        reconnectionAttempts: 5,
+      }
+    );
 
     socketRef.current = newSocket;
     setSocket(newSocket);
 
-    newSocket.on('connect', () => {
-      console.log('Dashboard socket connected:', newSocket.id);
-      
-      newSocket.emit('join_session', { room: selectedRoom.room_code, session_id: 'admin-global' });
-      newSocket.emit('admin_connect', { room: selectedRoom.room_code, adminId: 'admin-global' });
+    newSocket.on("connect", () => {
+      console.log("Dashboard socket connected:", newSocket.id);
+
+      newSocket.emit("join_session", {
+        room: selectedRoom.room_code,
+        session_id: "admin-global",
+      });
+      newSocket.emit("admin_connect", {
+        room: selectedRoom.room_code,
+        adminId: "admin-global",
+      });
     });
 
     // دریافت پیام جدید — با صدا، چشمک و نوتیفیکیشن
-    newSocket.on('receive_message', (data) => {
+    newSocket.on("receive_message", (data) => {
       if (data.room !== selectedRoom.room_code) return;
 
-      if (data.sender_type === 'guest') {
+      if (data.sender_type === "guest") {
         // 1. پخش صدا
         notificationSoundRef.current?.play().catch(() => {});
 
         // 2. نوتیفیکیشن مرورگر (فقط وقتی تب غیرفعال)
         if (
-          notificationPermission === 'granted' &&
+          notificationPermission === "granted" &&
           document.hidden &&
           selectedUserRef.current?.session_id !== data.session_id
         ) {
           const notif = new Notification(`پیام جدید از ${data.sender}`, {
             body: data.message,
-            icon: '/favicon.ico',
+            icon: "/favicon.ico",
             tag: `chat-${data.session_id}`,
-            renotify: true,
           });
           notif.onclick = () => {
             window.focus();
-            const user = users.find(u => u.session_id === data.session_id);
+            const user = users.find((u) => u.session_id === data.session_id);
             if (user) handleUserSelect(user);
           };
         }
@@ -254,7 +274,7 @@ export default function Dashboard() {
         // 3. نمایش پیام در چت
         if (selectedUserRef.current?.session_id === data.session_id) {
           setMessages((prev) => {
-            const exists = prev.some(m => m.message_id === data.message_id);
+            const exists = prev.some((m) => m.message_id === data.message_id);
             return exists ? prev : [...prev, data];
           });
         }
@@ -263,32 +283,37 @@ export default function Dashboard() {
         setUsers((prev) =>
           prev.map((u) =>
             u.session_id === data.session_id
-              ? { 
-                  ...u, 
+              ? {
+                  ...u,
                   newMessageCount: (u.newMessageCount || 0) + 1,
-                  hasNewMessageFlash: true // فعال کردن چشمک
+                  hasNewMessageFlash: true, // فعال کردن چشمک
                 }
               : u
           )
         );
 
         // هشدار کلی
-        if (!selectedUserRef.current || selectedUserRef.current.session_id !== data.session_id) {
+        if (
+          !selectedUserRef.current ||
+          selectedUserRef.current.session_id !== data.session_id
+        ) {
           setNewMessageAlert(true);
         }
 
         // غیرفعال کردن چشمک بعد از 3 ثانیه
         setTimeout(() => {
-          setUsers(prev => prev.map(u => 
-            u.session_id === data.session_id 
-              ? { ...u, hasNewMessageFlash: false }
-              : u
-          ));
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.session_id === data.session_id
+                ? { ...u, hasNewMessageFlash: false }
+                : u
+            )
+          );
         }, 3000);
       }
     });
 
-    newSocket.on('user_typing', (data) => {
+    newSocket.on("user_typing", (data) => {
       if (data.session_id === selectedUserRef.current?.session_id) {
         setTypingUsers([data.name]);
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -296,18 +321,18 @@ export default function Dashboard() {
       }
     });
 
-    newSocket.on('user_status', ({ session_id, last_active, isOnline }) => {
+    newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
       setUsers((prev) =>
         prev.map((u) =>
-          u.session_id === session_id
-            ? { ...u, last_active, isOnline }
-            : u
+          u.session_id === session_id ? { ...u, last_active, isOnline } : u
         )
       );
     });
 
-    newSocket.on('connect_error', () => setError('اتصال Socket با مشکل مواجه شد'));
-    newSocket.on('disconnect', () => console.log('Socket disconnected'));
+    newSocket.on("connect_error", () =>
+      setError("اتصال Socket با مشکل مواجه شد")
+    );
+    newSocket.on("disconnect", () => console.log("Socket disconnected"));
 
     return () => {
       newSocket.disconnect();
@@ -319,7 +344,9 @@ export default function Dashboard() {
   const loadUsers = async (roomCode: string) => {
     if (!roomCode) return;
     try {
-      const res = await fetch(`/api/users?room=${roomCode}`, { credentials: 'include' });
+      const res = await fetch(`/api/users?room=${roomCode}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok) {
         const usersList = data.map((user: User) => ({
@@ -331,35 +358,45 @@ export default function Dashboard() {
         setUsers(usersList);
 
         if (socketRef.current) {
-          socketRef.current.emit('join_session', { room: roomCode, session_id: 'admin-global' });
+          socketRef.current.emit("join_session", {
+            room: roomCode,
+            session_id: "admin-global",
+          });
           usersList.forEach((u: User) => {
-            socketRef.current!.emit('join_session', { room: roomCode, session_id: u.session_id });
+            socketRef.current!.emit("join_session", {
+              room: roomCode,
+              session_id: u.session_id,
+            });
           });
         }
       } else {
-        setError(data.error || 'بارگذاری کاربران موفقیت‌آمیز نبود');
+        setError(data.error || "بارگذاری کاربران موفقیت‌آمیز نبود");
       }
     } catch {
-      setError('بارگذاری کاربران موفقیت‌آمیز نبود');
+      setError("بارگذاری کاربران موفقیت‌آمیز نبود");
     }
   };
 
   // بارگذاری پیام‌ها
   const loadMessages = async (roomCode: string, sessionId: string) => {
     try {
-      const res = await fetch(`/api/messages?room=${roomCode}&session_id=${sessionId}`);
+      const res = await fetch(
+        `/api/messages?room=${roomCode}&session_id=${sessionId}`
+      );
       const data = await res.json();
       setMessages(Array.isArray(data) ? data : []);
 
-      await fetch('/api/messages/mark-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/messages/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomCode, sessionId }),
       });
 
       setUsers((prev) =>
         prev.map((u) =>
-          u.session_id === sessionId ? { ...u, newMessageCount: 0, hasNewMessageFlash: false } : u
+          u.session_id === sessionId
+            ? { ...u, newMessageCount: 0, hasNewMessageFlash: false }
+            : u
         )
       );
     } catch {
@@ -368,11 +405,15 @@ export default function Dashboard() {
   };
 
   // انتخاب کاربر
-  const handleUserSelect = async (user: User) => {
-    setSelectedUser(user);
-    await loadMessages(selectedRoom!.room_code, user.session_id);
+// جدا کردن setSelectedUser از async
+const handleUserSelect = (user: User | null) => {
+  if (!user) return;
+
+  setSelectedUser(user);
+  loadMessages(selectedRoom!.room_code, user.session_id).then(() => {
     setNewMessageAlert(false);
-  };
+  });
+};
 
   // ارسال پیام ادمین
   const sendMessage = () => {
@@ -381,22 +422,25 @@ export default function Dashboard() {
     const msgData = {
       room: selectedRoom!.room_code,
       message: message.trim(),
-      sender: 'Admin',
-      sender_type: 'admin',
+      sender: "Admin",
+      sender_type: "admin",
       session_id: selectedUser.session_id,
       timestamp: new Date().toISOString(),
     };
 
-    socketRef.current.emit('send_message', msgData);
-    setMessages((prev) => [...prev, { ...msgData, message_id: crypto.randomUUID() }]);
-    setMessage('');
+    socketRef.current.emit("send_message", msgData);
+    setMessages((prev) => [
+      ...prev,
+      { ...msgData, sender_type: "admin" as const, message_id: crypto.randomUUID() },
+    ]);
+    setMessage("");
   };
 
   const handleTyping = () => {
     if (socketRef.current && selectedUser) {
-      socketRef.current.emit('user_typing', {
+      socketRef.current.emit("user_typing", {
         room: selectedRoom!.room_code,
-        name: 'Admin',
+        name: "Admin",
         session_id: selectedUser.session_id,
       });
     }
@@ -407,6 +451,30 @@ export default function Dashboard() {
     setMessages([]);
   };
 
+  // بعد از useEffect چک احراز هویت
+useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      const data = await res.json();
+      if (data.authenticated && data.user) {
+        setCurrentUser({
+          fullName: data.user.fullName,
+          username: data.user.username,
+          initials: data.user.initials,
+          isOnline: data.user.isOnline,
+        });
+      } else {
+        window.location.href = '/login';
+      }
+    } catch (err) {
+      console.error('Failed to fetch current user:', err);
+      window.location.href = '/login';
+    }
+  };
+
+  fetchCurrentUser();
+}, []);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -420,20 +488,21 @@ export default function Dashboard() {
   return (
     <div
       className={classNames(
-        'min-h-screen font-sans transition-all duration-300',
+        "min-h-screen font-sans transition-all duration-300",
         darkMode
-          ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white'
-          : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-gray-900'
+          ? "bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 text-white"
+          : "bg-linear-to-br from-blue-50 via-white to-indigo-50 text-gray-900"
       )}
       dir="rtl"
     >
-      <Header
-        setShowSettingsModal={setShowSettingsModal}
-        setDarkMode={setDarkMode}
-        darkMode={darkMode}
-        setShowCreateRoom={setShowCreateRoom}
-        setShowSelectSiteModal={setShowSelectSiteModal}
-      />
+<Header
+  setDarkMode={setDarkMode}
+  darkMode={darkMode}
+  setShowCreateRoom={setShowCreateRoom}
+  setShowSelectSiteModal={setShowSelectSiteModal}
+  currentUser={currentUser}
+  selectedRoom={selectedRoom} // اضافه شد
+/>
 
       <ErrorAlert error={error} setError={setError} />
       <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -498,18 +567,18 @@ export default function Dashboard() {
         embedCode={embedCode}
       />
 
-      <SettingsModal
-        showSettingsModal={showSettingsModal}
-        setShowSettingsModal={setShowSettingsModal}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-      />
+ 
 
       {/* انیمیشن چشمک فقط برای hasNewMessageFlash */}
       <style jsx global>{`
         @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
         }
         [data-has-new-message-flash="true"] {
           animation: pulse 1.5s ease-in-out infinite;

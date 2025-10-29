@@ -12,6 +12,7 @@ interface User {
   newMessageCount?: number;
   last_active?: string;
   isOnline?: boolean;
+  hasNewMessageFlash?: boolean; // اضافه شد
 }
 
 interface Message {
@@ -32,7 +33,7 @@ interface MobileChatModalProps {
   sendMessage: () => void;
   handleTyping: () => void;
   handleBack: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+messagesEndRef: React.MutableRefObject<HTMLDivElement | null>;
   darkMode: boolean;
 }
 

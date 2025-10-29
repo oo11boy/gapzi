@@ -1,9 +1,9 @@
-// app/api/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { comparePassword, generateToken } from '@/lib/auth';
+import { RowDataPacket } from 'mysql2'; // اضافه شد
 
-interface UserRow {
+interface UserRow extends RowDataPacket {
   id: number;
   username: string;
   password_hash: string;
@@ -30,7 +30,12 @@ export async function POST(req: NextRequest) {
 
     const token = generateToken(user.id, user.role);
     const response = NextResponse.json({ token }, { status: 200 });
-    response.cookies.set('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
     return response;
   } catch (error) {
     console.error('Error during login:', error);

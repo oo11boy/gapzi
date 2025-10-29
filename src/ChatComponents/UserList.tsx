@@ -12,7 +12,8 @@ interface User {
   newMessageCount?: number;
   last_active?: string;
   isOnline?: boolean;
-  hasNewMessageFlash:string;
+  hasNewMessageFlash?: boolean; // تغییر از string به boolean
+  
 }
 
 interface UserListProps {
@@ -21,6 +22,7 @@ interface UserListProps {
   setSelectedUser: (user: User | null) => void;
   loadMessages: (roomCode: string, sessionId: string) => void;
   darkMode: boolean;
+  newMessageAlert: boolean; // اضافه شد
 }
 
 export default function UserList({ users, selectedUser, setSelectedUser, loadMessages, darkMode }: UserListProps) {
@@ -83,7 +85,7 @@ export default function UserList({ users, selectedUser, setSelectedUser, loadMes
                     loadMessages(user.room_code, user.session_id);
                   }
                 }}
-                data-flash={user.hasNewMessageFlash} // فقط این خط اضافه شد
+             data-flash={user.hasNewMessageFlash ? 'true' : 'false'}
                 className={classNames(
                   'group relative p-3 sm:p-4 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden flex justify-between items-center',
                   selectedUser?.session_id === user.session_id
