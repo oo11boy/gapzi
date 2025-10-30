@@ -10,8 +10,9 @@ interface Message extends RowDataPacket {
   session_id: string;
   sender_type: 'admin' | 'guest';
   message: string;
-  timestamp: string;
+  created_at: string;  // تغییر از timestamp
   is_read: boolean;
+  edited: boolean;
 }
 
 const corsHeaders = {
@@ -36,10 +37,12 @@ export async function GET(req: NextRequest) {
     }
 
     const query = `
-      SELECT id, message_id, room_id, session_id, sender_type, message, timestamp, is_read
+      SELECT 
+        id, message_id, room_id, session_id, sender_type, message, 
+        created_at AS timestamp, is_read, edited
       FROM messages
       WHERE room_id = ? AND session_id = ?
-      ORDER BY timestamp ASC
+      ORDER BY created_at ASC   -- فقط created_at
     `;
     const params = [roomId, sessionId];
 
@@ -55,6 +58,7 @@ export async function GET(req: NextRequest) {
         message: msg.message,
         timestamp: msg.timestamp,
         is_read: !!msg.is_read,
+        edited: !!msg.edited,
       })),
       { status: 200, headers: corsHeaders }
     );

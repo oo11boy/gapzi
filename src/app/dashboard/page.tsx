@@ -4,11 +4,9 @@ import CreateRoomModal from "@/ChatComponents/CreateRoomModal";
 import EmbedCodeModal from "@/ChatComponents/EmbedCodeModal";
 import ErrorAlert from "@/ChatComponents/ErrorAlert";
 import Header from "@/ChatComponents/Header";
-
 import MobileChatModal from "@/ChatComponents/MobileChatModal";
 import SelectSiteModal from "@/ChatComponents/SelectSiteModal";
 import Sidebar from "@/ChatComponents/Sidebar";
-
 import UserList from "@/ChatComponents/UserList";
 import { classNames } from "@/ChatComponents/utils/classNames";
 import { useState, useEffect, useRef } from "react";
@@ -28,7 +26,7 @@ interface User {
   newMessageCount?: number;
   last_active?: string;
   isOnline?: boolean;
-  hasNewMessageFlash?: boolean; // جدید: برای چشمک زدن
+  hasNewMessageFlash?: boolean;
 }
 
 interface Message {
@@ -38,7 +36,9 @@ interface Message {
   session_id: string;
   timestamp: string;
   sender_type: "admin" | "guest";
+  edited?: boolean;
 }
+
 function formatLastSeen(date: number | Date) {
   const now = new Date();
   const dateValue = date instanceof Date ? date.getTime() : date;
@@ -63,7 +63,6 @@ export default function Dashboard() {
   const [embedCode, setEmbedCode] = useState("");
   const [siteUrl, setSiteUrl] = useState("");
   const [error, setError] = useState("");
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [newMessageAlert, setNewMessageAlert] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -74,7 +73,8 @@ export default function Dashboard() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notificationPermission, setNotificationPermission] =
-    useState<NotificationPermission>("default"); // جدید
+    useState<NotificationPermission>("default");
+  const [editingMessage, setEditingMessage] = useState<string | null>(null);
 
   const [currentUser, setCurrentUser] = useState<{
     fullName: string;
@@ -82,62 +82,54 @@ export default function Dashboard() {
     initials: string;
     isOnline: boolean;
   } | null>(null);
-const messagesEndRef = useRef<HTMLDivElement>(null!);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null!);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<User | null>(null);
-  const notificationSoundRef = useRef<HTMLAudioElement | null>(null); // جدید: صدا
+  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
 
-  // ایجاد صدا یکبار
+  // ایجاد صدا
   useEffect(() => {
     const audio = new Audio("/sounds/notification.mp3");
     audio.preload = "auto";
     notificationSoundRef.current = audio;
   }, []);
 
-  // درخواست دسترسی نوتیفیکیشن مرورگر
+  // درخواست نوتیفیکیشن
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().then((permission) => {
-        setNotificationPermission(permission);
-      });
+      Notification.requestPermission().then(setNotificationPermission);
     } else if ("Notification" in window) {
       setNotificationPermission(Notification.permission);
     }
   }, []);
 
-  // همگام‌سازی selectedUser با ref
+  // همگام‌سازی selectedUser
   useEffect(() => {
     selectedUserRef.current = selectedUser;
   }, [selectedUser]);
 
-  // اسکرول خودکار به پایین
+  // اسکرول خودکار
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     setNewMessageAlert(false);
   }, [messages]);
 
-  // چک کردن احراز هویت
+  // چک احراز هویت
   useEffect(() => {
     const checkAuth = async () => {
       const res = await fetch("/api/me", { credentials: "include" });
-      if (!res.ok) {
-        window.location.href = "/login";
-      }
+      if (!res.ok) window.location.href = "/login";
     };
     checkAuth();
   }, []);
 
-  // ایجاد اتاق جدید
+  // ایجاد اتاق
   const createRoom = async () => {
-    if (!siteUrl) {
-      setError("لطفاً آدرس وب‌سایت را وارد کنید");
-      return;
-    }
-    if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl)) {
-      setError("لطفاً یک URL معتبر وارد کنید (مانند https://example.com)");
-      return;
-    }
+    if (!siteUrl) return setError("لطفاً آدرس وب‌سایت را وارد کنید");
+    if (!/^https?:\/\/[^\s$.?#].[^\s]*$/.test(siteUrl))
+      return setError("URL معتبر نیست");
 
     try {
       setLoading(true);
@@ -150,41 +142,39 @@ const messagesEndRef = useRef<HTMLDivElement>(null!);
       const data = await res.json();
 
       if (res.ok) {
-        const embedCode =
-          data.embedCode ||
-          `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${data.room_code}"></script>`;
-        const newRoom = { ...data, embed_code: embedCode };
+        const embed = `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${data.room_code}"></script>`;
+        const newRoom = { ...data, embed_code: embed };
         setRooms((prev) => [...prev, newRoom]);
         setSelectedRoom(newRoom);
         sessionStorage.setItem("selectedRoom", JSON.stringify(newRoom));
-        if (newRoom.room_code) await loadUsers(newRoom.room_code);
+        await loadUsers(newRoom.room_code);
         setShowCreateRoom(false);
         setSiteUrl("");
-        setEmbedCode(embedCode);
+        setEmbedCode(embed);
         setShowEmbedModal(true);
       } else {
-        setError(data.error || "ایجاد اتاق موفقیت‌آمیز نبود");
+        setError(data.error || "خطا در ایجاد اتاق");
       }
-    } catch (err) {
-      console.error(err);
-      setError("خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.");
+    } catch {
+      setError("خطای سرور");
     } finally {
       setLoading(false);
     }
   };
-// در داشبورد
-useEffect(() => {
-  const interval = setInterval(() => {
-    if (socketRef.current?.connected && selectedRoom) {
-      socketRef.current.emit('join_session', {
-        room: selectedRoom.room_code,
-        session_id: 'admin-global',
-      });
-    }
-  }, 20000); // هر 20 ثانیه پینگ
 
-  return () => clearInterval(interval);
-}, [selectedRoom]);
+  // پینگ دوره‌ای
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (socketRef.current?.connected && selectedRoom) {
+        socketRef.current.emit("join_session", {
+          room: selectedRoom.room_code,
+          session_id: "admin-global",
+        });
+      }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [selectedRoom]);
+
   // بارگذاری اتاق‌ها
   useEffect(() => {
     const fetchRooms = async () => {
@@ -193,12 +183,7 @@ useEffect(() => {
         const res = await fetch("/api/rooms", { credentials: "include" });
         const data = await res.json();
 
-        if (res.status === 403) {
-          setError(
-            "دسترسی غیرمجاز: فقط ادمین‌ها می‌توانند اتاق‌ها را مشاهده کنند"
-          );
-          return;
-        }
+        if (res.status === 403) return setError("دسترسی غیرمجاز");
 
         const roomsWithEmbed = data.map((room: any) => ({
           ...room,
@@ -215,39 +200,30 @@ useEffect(() => {
           return;
         }
 
-        const savedRoom = sessionStorage.getItem("selectedRoom");
-        let roomToSelect: Room | null = null;
-
-        if (savedRoom) {
-          const parsedRoom = JSON.parse(savedRoom);
-          const foundRoom = roomsWithEmbed.find(
-            (room: Room) => room.room_code === parsedRoom.room_code
-          );
-          if (foundRoom) roomToSelect = foundRoom;
-        }
-
-        if (!roomToSelect)
-          roomToSelect = roomsWithEmbed[roomsWithEmbed.length - 1];
+        const saved = sessionStorage.getItem("selectedRoom");
+        let roomToSelect = saved
+          ? JSON.parse(saved)
+          : roomsWithEmbed[roomsWithEmbed.length - 1];
+        const found = roomsWithEmbed.find(
+          (r: Room) => r.room_code === roomToSelect.room_code
+        );
+        if (found) roomToSelect = found;
 
         setSelectedRoom(roomToSelect);
         sessionStorage.setItem("selectedRoom", JSON.stringify(roomToSelect));
-
-        if (roomToSelect?.room_code) {
-          await loadUsers(roomToSelect.room_code);
-        }
-      } catch (error) {
-        setError("بارگذاری اتاق‌ها موفقیت‌آمیز نبود");
+        if (roomToSelect?.room_code) await loadUsers(roomToSelect.room_code);
+      } catch {
+        setError("بارگذاری اتاق‌ها ناموفق");
       } finally {
         setLoading(false);
       }
     };
-
     fetchRooms();
   }, []);
 
   // اتصال Socket.io
   useEffect(() => {
-    if (loading || !selectedRoom || !selectedRoom.room_code) return;
+    if (loading || !selectedRoom) return;
 
     const newSocket = io(
       process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000",
@@ -258,11 +234,8 @@ useEffect(() => {
     );
 
     socketRef.current = newSocket;
-    setSocket(newSocket);
 
     newSocket.on("connect", () => {
-      console.log("Dashboard socket connected:", newSocket.id);
-
       newSocket.emit("join_session", {
         room: selectedRoom.room_code,
         session_id: "admin-global",
@@ -273,101 +246,113 @@ useEffect(() => {
       });
     });
 
-    // دریافت پیام جدید — با صدا، چشمک و نوتیفیکیشن
-newSocket.on("receive_message", (data) => {
-  if (data.room !== selectedRoom.room_code) return;
+    // دریافت پیام
+    newSocket.on("receive_message", (data) => {
+      if (data.room !== selectedRoom.room_code) return;
 
-  if (data.sender_type === "guest") {
-    const targetSessionId = data.session_id;
+      if (data.sender_type === "guest") {
+        const targetId = data.session_id;
 
-    // همیشه کاربر را با session_id آپدیت کن (حتی اگر وجود داشته باشد)
-    setUsers((prev) => {
-      const existingIndex = prev.findIndex((u) => u.session_id === targetSessionId);
+        setUsers((prev) => {
+          const idx = prev.findIndex((u) => u.session_id === targetId);
+          if (idx !== -1) {
+            const updated = [...prev];
+            updated[idx] = {
+              ...updated[idx],
+              name: data.sender,
+              last_active: new Date().toISOString(),
+              isOnline: true,
+              newMessageCount:
+                selectedUserRef.current?.session_id === targetId
+                  ? 0
+                  : (updated[idx].newMessageCount || 0) + 1,
+              hasNewMessageFlash: true,
+            };
+            return updated;
+          }
+          return [
+            ...prev,
+            {
+              session_id: targetId,
+              name: data.sender,
+              email: "",
+              room_code: data.room,
+              newMessageCount:
+                selectedUserRef.current?.session_id === targetId ? 0 : 1,
+              hasNewMessageFlash: true,
+              isOnline: true,
+              last_active: new Date().toISOString(),
+            },
+          ];
+        });
 
-      // اگر کاربر وجود دارد → آپدیت کن
-      if (existingIndex !== -1) {
-        const updatedUsers = [...prev];
-        updatedUsers[existingIndex] = {
-          ...updatedUsers[existingIndex],
-          name: data.sender, // ممکن است نام تغییر کند
-          last_active: new Date().toISOString(),
-          isOnline: true,
-          newMessageCount:
-            selectedUserRef.current?.session_id === targetSessionId
-              ? 0
-              : (updatedUsers[existingIndex].newMessageCount || 0) + 1,
-          hasNewMessageFlash: true,
-        };
-        return updatedUsers;
+        notificationSoundRef.current?.play().catch(() => {});
+
+        if (
+          notificationPermission === "granted" &&
+          document.hidden &&
+          selectedUserRef.current?.session_id !== targetId
+        ) {
+          const notif = new Notification(`پیام جدید از ${data.sender}`, {
+            body: data.message,
+            icon: "/favicon.ico",
+            tag: `chat-${targetId}`,
+          });
+          notif.onclick = () => {
+            window.focus();
+            const user = users.find((u) => u.session_id === targetId) || {
+              session_id: targetId,
+              name: data.sender,
+              email: "",
+              room_code: data.room,
+            };
+            handleUserSelect(user as User);
+          };
+        }
+
+        if (selectedUserRef.current?.session_id === targetId) {
+          setMessages((prev) =>
+            prev.some((m) => m.message_id === data.message_id)
+              ? prev
+              : [...prev, data]
+          );
+        }
+
+        if (
+          !selectedUserRef.current ||
+          selectedUserRef.current.session_id !== targetId
+        ) {
+          setNewMessageAlert(true);
+        }
+
+        setTimeout(() => {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.session_id === targetId
+                ? { ...u, hasNewMessageFlash: false }
+                : u
+            )
+          );
+        }, 3000);
       }
-
-      // اگر کاربر جدید است → اضافه کن
-      const newUser: User = {
-        session_id: targetSessionId,
-        name: data.sender,
-        email: "",
-        room_code: data.room,
-        newMessageCount: selectedUserRef.current?.session_id === targetSessionId ? 0 : 1,
-        hasNewMessageFlash: true,
-        isOnline: true,
-        last_active: new Date().toISOString(),
-      };
-      return [...prev, newUser];
     });
 
-    // --- بخش‌های دیگر (صدا، نوتیفیکیشن، پیام) ---
-    notificationSoundRef.current?.play().catch(() => {});
-
-    if (
-      notificationPermission === "granted" &&
-      document.hidden &&
-      selectedUserRef.current?.session_id !== targetSessionId
-    ) {
-      const notif = new Notification(`پیام جدید از ${data.sender}`, {
-        body: data.message,
-        icon: "/favicon.ico",
-        tag: `chat-${targetSessionId}`,
-      });
-      notif.onclick = () => {
-        window.focus();
-        const user = users.find((u) => u.session_id === targetSessionId) || {
-          session_id: targetSessionId,
-          name: data.sender,
-          email: "",
-          room_code: data.room,
-        };
-        handleUserSelect(user as User);
-      };
-    }
-
-    // اضافه کردن پیام فقط اگر کاربر انتخاب شده باشد
-    if (selectedUserRef.current?.session_id === targetSessionId) {
-      setMessages((prev) => {
-        const exists = prev.some((m) => m.message_id === data.message_id);
-        return exists ? prev : [...prev, data];
-      });
-    }
-
-    // هشدار پیام جدید فقط اگر کاربر انتخاب نشده باشد
-    if (
-      !selectedUserRef.current ||
-      selectedUserRef.current.session_id !== targetSessionId
-    ) {
-      setNewMessageAlert(true);
-    }
-
-    // حذف چشمک بعد از 3 ثانیه
-    setTimeout(() => {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.session_id === targetSessionId
-            ? { ...u, hasNewMessageFlash: false }
-            : u
+    // ویرایش پیام
+    newSocket.on("message_edited", (data) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.message_id === data.message_id
+            ? { ...m, message: data.message, edited: true }
+            : m
         )
       );
-    }, 3000);
-  }
-});
+    });
+
+    // حذف پیام
+    newSocket.on("message_deleted", ({ message_id }) => {
+      setMessages((prev) => prev.filter((m) => m.message_id !== message_id));
+    });
+
     newSocket.on("user_typing", (data) => {
       if (data.session_id === selectedUserRef.current?.session_id) {
         setTypingUsers([data.name]);
@@ -375,28 +360,16 @@ newSocket.on("receive_message", (data) => {
         typingTimeoutRef.current = setTimeout(() => setTypingUsers([]), 2000);
       }
     });
-newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
-  setUsers((prev) =>
-    prev.map((u) =>
-      u.session_id === session_id
-        ? {
-            ...u,
-            last_active,
-            isOnline,
-            last_seen_text: isOnline
-              ? "آنلاین"
-              : formatLastSeen(new Date(last_active)),
-          }
-        : u
-    )
-  );
-});
 
+    newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.session_id === session_id ? { ...u, last_active, isOnline } : u
+        )
+      );
+    });
 
-
-    newSocket.on("connect_error", () =>
-      setError("اتصال Socket با مشکل مواجه شد")
-    );
+    newSocket.on("connect_error", () => setError("اتصال قطع شد"));
     newSocket.on("disconnect", () => console.log("Socket disconnected"));
 
     return () => {
@@ -407,42 +380,40 @@ newSocket.on("user_status", ({ session_id, last_active, isOnline }) => {
 
   // بارگذاری کاربران
   const loadUsers = async (roomCode: string) => {
-    if (!roomCode) return;
     try {
       const res = await fetch(`/api/users?room=${roomCode}`, {
         credentials: "include",
       });
       const data = await res.json();
       if (res.ok) {
-    const usersList = data.map((user: User) => ({
-  ...user,
-  room_code: roomCode,
-  newMessageCount: user.newMessageCount || 0,
-  hasNewMessageFlash: false,
-}));
-// حذف کاربران تکراری بر اساس session_id
-const uniqueUsers = usersList.filter((user: { session_id: any; }, index: any, self: any[]) =>
-  index === self.findIndex((u: { session_id: any; }) => u.session_id === user.session_id)
-);
-   setUsers(uniqueUsers)
+        const unique = data
+          .filter(
+            (u: User, i: number, self: User[]) =>
+              i === self.findIndex((t) => t.session_id === u.session_id)
+          )
+          .map((u: User) => ({
+            ...u,
+            room_code: roomCode,
+            newMessageCount: u.newMessageCount || 0,
+            hasNewMessageFlash: false,
+          }));
+        setUsers(unique);
 
         if (socketRef.current) {
           socketRef.current.emit("join_session", {
             room: roomCode,
             session_id: "admin-global",
           });
-          usersList.forEach((u: User) => {
+          unique.forEach((u: { session_id: any; }) =>
             socketRef.current!.emit("join_session", {
               room: roomCode,
               session_id: u.session_id,
-            });
-          });
+            })
+          );
         }
-      } else {
-        setError(data.error || "بارگذاری کاربران موفقیت‌آمیز نبود");
       }
     } catch {
-      setError("بارگذاری کاربران موفقیت‌آمیز نبود");
+      setError("بارگذاری کاربران ناموفق");
     }
   };
 
@@ -474,35 +445,79 @@ const uniqueUsers = usersList.filter((user: { session_id: any; }, index: any, se
   };
 
   // انتخاب کاربر
-// جدا کردن setSelectedUser از async
-const handleUserSelect = (user: User | null) => {
-  if (!user) return;
+  const handleUserSelect = (user: User | null) => {
+    if (!user) return;
+    setSelectedUser(user);
+    loadMessages(selectedRoom!.room_code, user.session_id).then(() =>
+      setNewMessageAlert(false)
+    );
+  };
 
-  setSelectedUser(user);
-  loadMessages(selectedRoom!.room_code, user.session_id).then(() => {
-    setNewMessageAlert(false);
-  });
-};
-
-  // ارسال پیام ادمین
-  const sendMessage = () => {
+  // ارسال/ویرایش پیام
+  const sendMessage = async () => {
     if (!message.trim() || !selectedUser || !socketRef.current) return;
 
+    const isEdit = !!editingMessage;
     const msgData = {
+      message_id: isEdit ? editingMessage! : crypto.randomUUID(),
       room: selectedRoom!.room_code,
       message: message.trim(),
       sender: "Admin",
-      sender_type: "admin",
+      sender_type: "admin" as const,
       session_id: selectedUser.session_id,
       timestamp: new Date().toISOString(),
+      edited: isEdit,
     };
 
-    socketRef.current.emit("send_message", msgData);
-    setMessages((prev) => [
-      ...prev,
-      { ...msgData, sender_type: "admin" as const, message_id: crypto.randomUUID() },
-    ]);
+    if (isEdit) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.message_id === editingMessage
+            ? { ...m, message: message.trim(), edited: true }
+            : m
+        )
+      );
+      socketRef.current.emit("edit_message", msgData);
+      await fetch(`/api/messages/${editingMessage}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message.trim() }),
+        credentials: "include",
+      });
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        { ...msgData, message_id: msgData.message_id },
+      ]);
+      socketRef.current.emit("send_message", msgData);
+    }
+
     setMessage("");
+    setEditingMessage(null);
+  };
+
+  const handleEdit = (msg: Message) => {
+    setMessage(msg.message);
+    setEditingMessage(msg.message_id);
+  };
+
+  const handleDelete = async (messageId: string) => {
+    if (!confirm("حذف پیام؟")) return;
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setMessages((prev) => prev.filter((m) => m.message_id !== messageId));
+        socketRef.current?.emit("delete_message", {
+          message_id: messageId,
+          room: selectedRoom!.room_code,
+        });
+      }
+    } catch {
+      setError("حذف ناموفق");
+    }
   };
 
   const handleTyping = () => {
@@ -520,30 +535,29 @@ const handleUserSelect = (user: User | null) => {
     setMessages([]);
   };
 
-  // بعد از useEffect چک احراز هویت
-useEffect(() => {
-  const fetchCurrentUser = async () => {
-    try {
-      const res = await fetch('/api/me', { credentials: 'include' });
-      const data = await res.json();
-      if (data.authenticated && data.user) {
-        setCurrentUser({
-          fullName: data.user.fullName,
-          username: data.user.username,
-          initials: data.user.initials,
-          isOnline: data.user.isOnline,
-        });
-      } else {
-        window.location.href = '/login';
+  // کاربر جاری
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          setCurrentUser({
+            fullName: data.user.fullName,
+            username: data.user.username,
+            initials: data.user.initials,
+            isOnline: data.user.isOnline,
+          });
+        } else {
+          window.location.href = "/login";
+        }
+      } catch {
+        window.location.href = "/login";
       }
-    } catch (err) {
-      console.error('Failed to fetch current user:', err);
-      window.location.href = '/login';
-    }
-  };
+    };
+    fetchCurrentUser();
+  }, []);
 
-  fetchCurrentUser();
-}, []);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -564,21 +578,20 @@ useEffect(() => {
       )}
       dir="rtl"
     >
-<Header
-  darkMode={darkMode}
-  setDarkMode={setDarkMode}
-  mobileOpen={mobileOpen}
-  setMobileOpen={setMobileOpen}
-/>
-
-<Sidebar
-  setShowCreateRoom={setShowCreateRoom}
-  setShowSelectSiteModal={setShowSelectSiteModal}
-  currentUser={currentUser}
-  selectedRoom={selectedRoom}
-  mobileOpen={mobileOpen}
-  setMobileOpen={setMobileOpen}
-/>
+      <Header
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
+      <Sidebar
+        setShowCreateRoom={setShowCreateRoom}
+        setShowSelectSiteModal={setShowSelectSiteModal}
+        currentUser={currentUser}
+        selectedRoom={selectedRoom}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
 
       <ErrorAlert error={error} setError={setError} />
       <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -600,6 +613,10 @@ useEffect(() => {
             sendMessage={sendMessage}
             handleTyping={handleTyping}
             darkMode={darkMode}
+            editingMessage={editingMessage}
+            setEditingMessage={setEditingMessage}
+            handleEdit={handleEdit}
+            handleDelete={handleDelete}
           />
         </div>
       </div>
@@ -615,6 +632,10 @@ useEffect(() => {
         handleBack={handleBack}
         messagesEndRef={messagesEndRef}
         darkMode={darkMode}
+        editingMessage={editingMessage}
+        setEditingMessage={setEditingMessage}
+        handleEdit={handleEdit}
+        handleDelete={handleDelete}
       />
 
       <CreateRoomModal
@@ -624,7 +645,6 @@ useEffect(() => {
         setSiteUrl={setSiteUrl}
         createRoom={createRoom}
       />
-
       <SelectSiteModal
         showSelectSiteModal={showSelectSiteModal}
         setShowSelectSiteModal={setShowSelectSiteModal}
@@ -636,16 +656,12 @@ useEffect(() => {
         loadUsers={loadUsers}
         darkMode={darkMode}
       />
-
       <EmbedCodeModal
         showEmbedModal={showEmbedModal}
         setShowEmbedModal={setShowEmbedModal}
         embedCode={embedCode}
       />
 
- 
-
-      {/* انیمیشن چشمک فقط برای hasNewMessageFlash */}
       <style jsx global>{`
         @keyframes pulse {
           0%,

@@ -550,74 +550,111 @@ async function updateAdminStatus() {
         setupSocket();
       }
 
-      function setupSocket() {
-        if (!window.chatSocket) {
-          window.chatSocket = io('http://localhost:3000', {
-            transports: ['websocket', 'polling'],
-            timeout: 20000,
-          });
+function setupSocket() {
+  if (!window.chatSocket) {
+    window.chatSocket = io('http://localhost:3000', {
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+    });
 
-          window.chatSocket.on('connect', () => {
-            console.log('Widget socket connected');
-            window.chatSocket.emit('join_session', { room, session_id: sessionId });
-          });
+    window.chatSocket.on('connect', () => {
+      console.log('Widget socket connected');
+      window.chatSocket.emit('join_session', { room, session_id: sessionId });
+    });
 
-          window.chatSocket.on('admin_status', (status) => {
-            const adminStatusEl = document.getElementById('admin-status');
-            if (!adminStatusEl) return;
+    // وضعیت ادمین
+    window.chatSocket.on('admin_status', (status) => {
+      const adminStatusEl = document.getElementById('admin-status');
+      if (!adminStatusEl) return;
 
-            if (status.isOnline) {
-              adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
-              adminStatusEl.className = 'online';
-            } else {
-              adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
-              adminStatusEl.className = 'offline';
-            }
-          });
-
-          window.chatSocket.on('receive_message', (data) => {
-            if (data.room !== room || data.session_id !== sessionId) return;
-
-            const existingMessage = messagesDiv.querySelector(`[data-message-id="${data.message_id}"]`);
-            if (existingMessage) return;
-
-            const p = document.createElement('div');
-            p.className = `message ${data.sender_type === 'admin' ? 'admin' : 'user'}`;
-            p.dataset.messageId = data.message_id;
-            p.innerHTML = `
-              <div>${data.message}</div>
-              <div class="message-time">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}</div>
-            `;
-            messagesDiv.appendChild(p);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            if (!chatContainer.classList.contains('open') && data.sender_type === 'admin') {
-              unreadCount++;
-              updateUnreadBadge();
-            }
-          });
-        }
-
-        // ارسال پیام
-        button.onclick = () => {
-          const msg = input.value.trim();
-          if (msg && window.chatSocket) {
-            window.chatSocket.emit('send_message', {
-              room,
-              message: msg,
-              sender: userInfo.name,
-              sender_type: 'guest',
-              session_id: sessionId,
-              timestamp: new Date().toISOString(),
-            });
-            input.value = '';
-            input.style.height = 'auto';
-          }
-        };
+      if (status.isOnline) {
+        adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
+        adminStatusEl.className = 'online';
+      } else {
+        adminStatusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
+        adminStatusEl.className = 'offline';
       }
+    });
+
+    // دریافت پیام جدید
+    window.chatSocket.on('receive_message', (data) => {
+      if (data.room !== room || data.session_id !== sessionId) return;
+
+      const messagesDiv = document.getElementById('messages');
+      const existingMessage = messagesDiv.querySelector(`[data-message-id="${data.message_id}"]`);
+      if (existingMessage) return;
+
+      const p = document.createElement('div');
+      p.className = `message ${data.sender_type === 'admin' ? 'admin' : 'user'}`;
+      p.dataset.messageId = data.message_id;
+      p.innerHTML = `
+        <div>${data.message}</div>
+        <div class="message-time">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}${data.edited ? '' : ''}</div>
+      `;
+      messagesDiv.appendChild(p);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      if (!chatContainer.classList.contains('open') && data.sender_type === 'admin') {
+        unreadCount++;
+        updateUnreadBadge();
+      }
+    });
+
+    // دریافت ویرایش پیام
+    window.chatSocket.on('message_edited', (data) => {
+      if (data.room !== room || data.session_id !== sessionId) return;
+
+      const messagesDiv = document.getElementById('messages');
+      const messageEl = messagesDiv.querySelector(`[data-message-id="${data.message_id}"]`);
+      if (!messageEl) return;
+
+      // آپدیت متن پیام
+      const textDiv = messageEl.querySelector('div');
+      if (textDiv) textDiv.textContent = data.message;
+
+      // آپدیت زمان + (ویرایش شده)
+      const timeDiv = messageEl.querySelector('.message-time');
+      if (timeDiv) {
+        timeDiv.innerHTML = `
+          ${new Date(data.timestamp).toLocaleTimeString('fa-IR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+      
+        `;
+      }
+    });
+
+    // حذف پیام (اختیاری)
+    window.chatSocket.on('message_deleted', ({ message_id }) => {
+      const messagesDiv = document.getElementById('messages');
+      const messageEl = messagesDiv.querySelector(`[data-message-id="${message_id}"]`);
+      if (messageEl) {
+        messageEl.remove();
+      }
+    });
+  }
+
+  // ارسال پیام
+  button.onclick = () => {
+    const msg = input.value.trim();
+    if (msg && window.chatSocket) {
+      window.chatSocket.emit('send_message', {
+        room,
+        message: msg,
+        sender: userInfo.name,
+        sender_type: 'guest',
+        session_id: sessionId,
+        timestamp: new Date().toISOString(),
+      });
+      input.value = '';
+      input.style.height = 'auto';
+    }
+  };
+}
     }
 
     // فرم احراز هویت

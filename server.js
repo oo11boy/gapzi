@@ -159,6 +159,62 @@ socket.on('disconnect', async () => {
     console.error('Error on disconnect:', err);
   }
 });
+// در socket.on('edit_message')
+socket.on('edit_message', async (data) => {
+  const { message_id, message, room, session_id } = data;
+
+  if (!message_id || !message || !room || !session_id) {
+    return socket.emit('error', 'Invalid edit data');
+  }
+
+  try {
+    // 1. آپدیت در دیتابیس
+    const [result] = await pool.execute(
+      'UPDATE messages SET message = ?, edited = 1, updated_at = NOW() WHERE message_id = ?',
+      [message, message_id]
+    );
+
+    if (result.affectedRows === 0) {
+      return socket.emit('error', 'Message not found');
+    }
+
+    // 2. گرفتن زمان اصلی پیام (created_at)
+    const [rows] = await pool.execute(
+      'SELECT created_at FROM messages WHERE message_id = ?',
+      [message_id]
+    );
+    const originalTimestamp = rows[0]?.created_at || new Date().toISOString();
+
+    // 3. دیتای کامل برای ارسال
+    const editData = {
+      message_id,
+      message,
+      edited: true,
+      timestamp: originalTimestamp,         // زمان اصلی ارسال
+      edited_at: new Date().toISOString(),  // زمان ویرایش
+      room,
+      session_id,
+    };
+
+    // 4. ارسال به همه: ادمین + کاربر ویجت
+    io.to(room).emit('message_edited', editData);                    // ادمین‌ها
+    io.to(`${room}:${session_id}`).emit('message_edited', editData); // کاربر ویجت
+
+  } catch (err) {
+    console.error('Edit error:', err);
+    socket.emit('error', 'Failed to edit message');
+  }
+});
+
+
+socket.on('delete_message', async ({ message_id, room }) => {
+  try {
+    await pool.execute('DELETE FROM messages WHERE message_id = ?', [message_id]);
+    io.to(room).emit('message_deleted', { message_id });
+  } catch (err) {
+    console.error('Delete error:', err);
+  }
+});
 
   });
 
