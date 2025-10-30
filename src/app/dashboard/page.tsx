@@ -7,6 +7,7 @@ import Header from "@/ChatComponents/Header";
 
 import MobileChatModal from "@/ChatComponents/MobileChatModal";
 import SelectSiteModal from "@/ChatComponents/SelectSiteModal";
+import Sidebar from "@/ChatComponents/Sidebar";
 
 import UserList from "@/ChatComponents/UserList";
 import { classNames } from "@/ChatComponents/utils/classNames";
@@ -70,6 +71,7 @@ export default function Dashboard() {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showSelectSiteModal, setShowSelectSiteModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission>("default"); // جدید
@@ -170,7 +172,19 @@ const messagesEndRef = useRef<HTMLDivElement>(null!);
       setLoading(false);
     }
   };
+// در داشبورد
+useEffect(() => {
+  const interval = setInterval(() => {
+    if (socketRef.current?.connected && selectedRoom) {
+      socketRef.current.emit('join_session', {
+        room: selectedRoom.room_code,
+        session_id: 'admin-global',
+      });
+    }
+  }, 20000); // هر 20 ثانیه پینگ
 
+  return () => clearInterval(interval);
+}, [selectedRoom]);
   // بارگذاری اتاق‌ها
   useEffect(() => {
     const fetchRooms = async () => {
@@ -551,12 +565,19 @@ useEffect(() => {
       dir="rtl"
     >
 <Header
-  setDarkMode={setDarkMode}
   darkMode={darkMode}
+  setDarkMode={setDarkMode}
+  mobileOpen={mobileOpen}
+  setMobileOpen={setMobileOpen}
+/>
+
+<Sidebar
   setShowCreateRoom={setShowCreateRoom}
   setShowSelectSiteModal={setShowSelectSiteModal}
   currentUser={currentUser}
-  selectedRoom={selectedRoom} // اضافه شد
+  selectedRoom={selectedRoom}
+  mobileOpen={mobileOpen}
+  setMobileOpen={setMobileOpen}
 />
 
       <ErrorAlert error={error} setError={setError} />
