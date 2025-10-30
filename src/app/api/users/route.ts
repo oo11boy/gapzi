@@ -1,23 +1,7 @@
-// app/api/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { RowDataPacket } from 'mysql2';
-
-interface Room extends RowDataPacket {
-  id: number;
-  user_id: number;
-}
-
-interface User extends RowDataPacket {
-  session_id: string;
-  name: string;
-  email: string;
-  room_id: number;
-  last_active: string;
-  newMessageCount: string | number;
-  role_name: string;
-}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,9 +9,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+interface User extends RowDataPacket {
+  session_id: string;
+  name: string;
+  email: string;
+  last_active: string;
+  room_id: number;
+  newMessageCount: number;
+}
+
+// تابع تبدیل تاریخ به جمله مشابه تلگرام
+function formatLastSeen(lastActive: string): string {
+  const now = new Date();
+  const last = new Date(lastActive);
+  const diff = Math.floor((now.getTime() - last.getTime()) / 1000);
+
+  if (diff < 60) return 'آخرین بازدید چند لحظه پیش';
+  if (diff < 3600) return `آخرین بازدید ${Math.floor(diff / 60)} دقیقه پیش`;
+  if (diff < 86400) return `آخرین بازدید ${Math.floor(diff / 3600)} ساعت پیش`;
+
+  const days = Math.floor(diff / 86400);
+  if (days === 1) return 'دیروز';
+  if (days < 7) return `${days} روز پیش`;
+  return last.toLocaleDateString('fa-IR');
+}
+
 export async function GET(req: NextRequest) {
   const roomCode = req.nextUrl.searchParams.get('room');
-  const isWidget = req.nextUrl.searchParams.get('widget') === 'true';
+  const widgetMode = req.nextUrl.searchParams.get('widget') === 'true';
   const token = req.cookies.get('token')?.value;
 
   if (!roomCode) {
@@ -35,36 +44,51 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    if (isWidget || !token) {
-      const [rooms] = await pool.query<Room[]>('SELECT id, user_id FROM chat_rooms WHERE room_code = ?', [roomCode]);
-      const room = rooms[0];
-      if (!room) {
+    // ========================================
+    // حالت ویجت: فقط وضعیت ادمین (بدون توکن)
+    // ========================================
+    if (widgetMode) {
+      const [roomRows] = await pool.query<RowDataPacket[]>(
+        'SELECT id FROM chat_rooms WHERE room_code = ?',
+        [roomCode]
+      );
+
+      if (roomRows.length === 0) {
         return NextResponse.json({ error: 'Invalid room' }, { status: 404, headers: corsHeaders });
       }
 
-      const [adminSessions] = await pool.query<User[]>(
-        `SELECT us.last_active, r.name as role_name
-         FROM user_sessions us
-         JOIN chat_rooms cr ON us.room_id = ? AND cr.id = us.room_id
-         JOIN users u ON cr.user_id = u.id
-         JOIN roles r ON u.role_id = r.id
-         WHERE us.room_id = ? AND r.name = 'admin'
-         LIMIT 1`,
-        [room.id, room.id]
+      const roomId = roomRows[0].id;
+
+      // آخرین فعالیت در این اتاق (ادمین یا کاربر)
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT last_active FROM user_sessions WHERE room_id = ? ORDER BY last_active DESC LIMIT 1`,
+        [roomId]
       );
 
-      if (adminSessions.length === 0) {
-        return NextResponse.json({ last_active: null, role: 'admin', room_code: roomCode }, { status: 200, headers: corsHeaders });
-      }
+      const lastActive = rows[0]?.last_active || null;
+      const now = new Date();
+      const diffMinutes = lastActive
+        ? Math.floor((now.getTime() - new Date(lastActive).getTime()) / (1000 * 60))
+        : null;
+
+      const isOnline = diffMinutes !== null && diffMinutes < 10;
 
       return NextResponse.json(
-        adminSessions.map((user) => ({
-          last_active: user.last_active,
-          role: user.role_name,
-          room_code: roomCode,
-        })),
+        {
+          isOnline,
+          lastSeen: isOnline ? 'آنلاین' : 'آخرین بازدید به تازگی',
+          lastActive,
+          diffMinutes,
+        },
         { status: 200, headers: corsHeaders }
       );
+    }
+
+    // ========================================
+    // حالت داشبورد ادمین: نیاز به توکن
+    // ========================================
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
     const { userId, role } = verifyToken(token);
@@ -72,39 +96,57 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Admins only' }, { status: 403, headers: corsHeaders });
     }
 
-    const [rooms] = await pool.query<Room[]>('SELECT id FROM chat_rooms WHERE room_code = ? AND user_id = ?', [roomCode, userId]);
-    const roomId = rooms[0]?.id;
-    if (!roomId) {
-      return NextResponse.json({ error: 'Invalid room or unauthorized' }, { status: 404, headers: corsHeaders });
+    const [roomRows] = await pool.query<RowDataPacket[]>(
+      'SELECT id FROM chat_rooms WHERE room_code = ? AND user_id = ?',
+      [roomCode, userId]
+    );
+
+    if (roomRows.length === 0) {
+      return NextResponse.json({ error: 'Invalid room' }, { status: 404, headers: corsHeaders });
     }
 
-    const [users] = await pool.query<User[]>(
-      `SELECT us.session_id, us.name, us.email, us.room_id, us.last_active,
-       (SELECT COUNT(*) FROM messages m 
-        WHERE m.room_id = us.room_id 
-        AND m.session_id = us.session_id 
-        AND m.is_read = FALSE 
-        AND m.sender_type != 'admin') as newMessageCount,
-       r.name as role_name
-       FROM user_sessions us
-       JOIN chat_rooms cr ON us.room_id = cr.id
-       JOIN users u ON cr.user_id = u.id
-       JOIN roles r ON u.role_id = r.id
-       WHERE us.room_id = ?`,
+    const roomId = roomRows[0].id;
+
+    const [rows] = await pool.query<User[]>(
+      `
+      SELECT 
+        us.session_id,
+        us.name,
+        us.email,
+        us.last_active,
+        (SELECT COUNT(*) FROM messages m 
+         WHERE m.room_id = us.room_id 
+         AND m.session_id = us.session_id 
+         AND m.is_read = FALSE 
+         AND m.sender_type != 'admin') AS newMessageCount
+      FROM user_sessions us
+      WHERE us.room_id = ?
+      ORDER BY us.last_active DESC
+      `,
       [roomId]
     );
 
-    return NextResponse.json(
-      users.map((user) => ({
-        ...user,
-        room_code: roomCode,
-        newMessageCount: parseInt(String(user.newMessageCount)) || 0,
-        isOnline: new Date(user.last_active).getTime() > Date.now() - 2 * 60 * 1000,
-      })),
-      { status: 200, headers: corsHeaders }
-    );
-  } catch (error) {
-    console.error('Error fetching users:', error);
+    const now = new Date();
+
+    const users = rows.map((user) => {
+      const lastActive = new Date(user.last_active);
+      const diffSeconds = Math.floor((now.getTime() - lastActive.getTime()) / 1000);
+      const isOnline = diffSeconds < 25; // 25 ثانیه
+
+      return {
+        session_id: user.session_id,
+        name: user.name,
+        email: user.email,
+        isOnline,
+        newMessageCount: user.newMessageCount || 0,
+        last_active: user.last_active,
+        last_seen_text: isOnline ? 'آنلاین' : formatLastSeen(user.last_active),
+      };
+    });
+
+    return NextResponse.json(users, { status: 200, headers: corsHeaders });
+  } catch (err) {
+    console.error('Error in /api/users:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500, headers: corsHeaders });
   }
 }

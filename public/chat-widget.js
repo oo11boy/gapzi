@@ -424,37 +424,26 @@
       }
     }
 
-    // تابع برای به‌روزرسانی وضعیت ادمین
-    async function updateAdminStatus() {
-      try {
-        const response = await fetch(`http://localhost:3000/api/users?room=${room}&widget=true`, {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const users = await response.json();
-        const lastActive = users[0]?.last_active;
-        if (lastActive) {
-          const lastActiveTime = new Date(lastActive).getTime();
-          const currentTime = new Date().getTime();
-          const diffMinutes = (currentTime - lastActiveTime) / (1000 * 60);
+// تابع برای به‌روزرسانی وضعیت ادمین
+async function updateAdminStatus() {
+  try {
+    const response = await fetch(`http://localhost:3000/api/users?room=${room}&widget=true`);
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    const data = await response.json();
 
-          if (diffMinutes < 10) {
-            adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
-            adminStatus.className = 'online';
-          } else {
-            adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید اخیراً`;
-            adminStatus.className = 'offline';
-          }
-        } else {
-          adminStatus.textContent = 'آخرین بازدید به تازگی';
-          adminStatus.className = 'offline';
-        }
-      } catch (error) {
-        console.error('Error fetching admin status:', error.message);
-        adminStatus.textContent = 'آخرین بازدید به تازگی';
-        adminStatus.className = 'offline';
-      }
+    if (data.isOnline) {
+      adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> ادمین آنلاین است`;
+      adminStatus.className = 'online';
+    } else {
+      adminStatus.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg> آخرین بازدید به تازگی`;
+      adminStatus.className = 'offline';
     }
+  } catch (error) {
+    console.error('Error fetching admin status:', error);
+    adminStatus.textContent = 'آخرین بازدید به تازگی';
+    adminStatus.className = 'offline';
+  }
+}
 
     // باز کردن ویجت
     chatButton.onclick = () => {

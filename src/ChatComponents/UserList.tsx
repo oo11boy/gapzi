@@ -1,4 +1,3 @@
-// components/ChatComponents/UserList.tsx
 'use client';
 import { motion } from 'framer-motion';
 import { classNames } from './utils/classNames';
@@ -12,8 +11,8 @@ interface User {
   newMessageCount?: number;
   last_active?: string;
   isOnline?: boolean;
-  hasNewMessageFlash?: boolean; // تغییر از string به boolean
-  
+  hasNewMessageFlash?: boolean;
+  last_seen_text?: string; // از API جدید
 }
 
 interface UserListProps {
@@ -22,31 +21,25 @@ interface UserListProps {
   setSelectedUser: (user: User | null) => void;
   loadMessages: (roomCode: string, sessionId: string) => void;
   darkMode: boolean;
-  newMessageAlert: boolean; // اضافه شد
+  newMessageAlert: boolean;
 }
 
-export default function UserList({ users, selectedUser, setSelectedUser, loadMessages, darkMode }: UserListProps) {
-const sortedUsers = [...users].sort((a, b) => {
-  // اولویت اول: کاربران آنلاین
-  if ((a.isOnline ?? false) && !(b.isOnline ?? false)) return -1;
-  if (!(a.isOnline ?? false) && (b.isOnline ?? false)) return 1;
+export default function UserList({
+  users,
+  selectedUser,
+  setSelectedUser,
+  loadMessages,
+  darkMode,
+}: UserListProps) {
+  // مرتب‌سازی مثل تلگرام: آنلاین‌ها بالا، سپس آخرین فعالیت
+  const sortedUsers = [...users].sort((a, b) => {
+    if ((a.isOnline ?? false) && !(b.isOnline ?? false)) return -1;
+    if (!(a.isOnline ?? false) && (b.isOnline ?? false)) return 1;
 
-  // اولویت دوم: جدیدترین فعالیت (last_active)
-  const timeA = a.last_active ? new Date(a.last_active).getTime() : 0;
-  const timeB = b.last_active ? new Date(b.last_active).getTime() : 0;
-
-  // جدیدترین اول (نزولی)
-  return timeB - timeA;
-});
-
-  const formatLastActive = (lastActive?: string) => {
-    if (!lastActive) return 'نامشخص';
-    const date = new Date(lastActive);
-    return date.toLocaleString('fa-IR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
-  };
+    const timeA = a.last_active ? new Date(a.last_active).getTime() : 0;
+    const timeB = b.last_active ? new Date(b.last_active).getTime() : 0;
+    return timeB - timeA;
+  });
 
   return (
     <motion.div
@@ -69,6 +62,7 @@ const sortedUsers = [...users].sort((a, b) => {
             {users.length}
           </span>
         </div>
+
         <div className="space-y-3 max-h-full sm:max-h-[70vh] overflow-y-auto pr-2 rtl:pr-0 rtl:pl-2 custom-scrollbar">
           {users.length === 0 ? (
             <div className="text-center py-12">
@@ -91,7 +85,7 @@ const sortedUsers = [...users].sort((a, b) => {
                     loadMessages(user.room_code, user.session_id);
                   }
                 }}
-             data-flash={user.hasNewMessageFlash ? 'true' : 'false'}
+                data-flash={user.hasNewMessageFlash ? 'true' : 'false'}
                 className={classNames(
                   'group relative p-3 sm:p-4 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden flex justify-between items-center',
                   selectedUser?.session_id === user.session_id
@@ -109,12 +103,15 @@ const sortedUsers = [...users].sort((a, b) => {
                     )}
                   >
                     <span className="text-white dark:text-gray-100 font-bold text-sm sm:text-base">
-                      {user.name.charAt(0).toUpperCase()}
+                      {user.name?.charAt(0)?.toUpperCase() || '?'}
                     </span>
+
+                    {/* نقطه وضعیت آنلاین */}
                     {user.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
                     )}
                   </div>
+
                   <div className="ml-3 rtl:ml-0 rtl:mr-3 flex-1 min-w-0">
                     <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
                       {user.name}
@@ -122,17 +119,17 @@ const sortedUsers = [...users].sort((a, b) => {
                     <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-300 truncate max-w-[120px] sm:max-w-40">
                       {user.email}
                     </p>
-                    <p
-                      className={classNames(
-                        'text-xs font-medium',
-                        user.isOnline ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'
-                      )}
-                    >
-                      {user.isOnline ? 'آنلاین' : `آخرین بازدید: ${formatLastActive(user.last_active)}`}
-                    </p>
+
+<p className={classNames(
+  'text-xs font-medium transition-colors duration-200',
+  user.isOnline ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'
+)}>
+  {user.last_seen_text || (user.isOnline ? 'آنلاین' : 'نامشخص')}
+</p>
                   </div>
                 </div>
-                {user.newMessageCount != undefined && user.newMessageCount > 0 && (
+
+                {user.newMessageCount && user.newMessageCount > 0 && (
                   <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold bg-rose-500 dark:bg-rose-400 text-white animate-pulse">
                     {user.newMessageCount}
                   </span>
