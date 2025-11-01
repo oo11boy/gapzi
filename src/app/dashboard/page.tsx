@@ -8,14 +8,17 @@ import MobileChatModal from "@/ChatComponents/MobileChatModal";
 import SelectSiteModal from "@/ChatComponents/SelectSiteModal";
 import Sidebar from "@/ChatComponents/Sidebar";
 import UserList from "@/ChatComponents/UserList";
+import UserInfoSidebar from "@/ChatComponents/UserInfoSidebar"; // جدید
 import { classNames } from "@/ChatComponents/utils/classNames";
 import { useState, useEffect, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 
 interface Room {
+  id?: number;
   room_code: string;
   site_url: string;
   embed_code?: string;
+  created_at?: string;
 }
 
 interface User {
@@ -27,9 +30,11 @@ interface User {
   last_active?: string;
   isOnline?: boolean;
   hasNewMessageFlash?: boolean;
+  last_seen_text?: string;
 }
 
 interface Message {
+  id?: number;
   message_id: string;
   sender: string;
   message: string;
@@ -37,11 +42,24 @@ interface Message {
   timestamp: string;
   sender_type: "admin" | "guest";
   edited?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
 }
 
-function formatLastSeen(date: number | Date) {
+interface UserMetadata {
+  current_page?: string;
+  page_history?: { url: string; timestamp: string; duration: number }[];
+  referrer?: string;
+  country?: string;
+  city?: string;
+  browser?: string;
+  os?: string;
+  device_type?: 'desktop' | 'mobile' | 'tablet';
+  ip_address?: string;
+}
+
+function formatLastSeen(date: number | Date | string) {
   const now = new Date();
-  const dateValue = date instanceof Date ? date.getTime() : date;
+  const dateValue = typeof date === 'string' ? new Date(date).getTime() : (date instanceof Date ? date.getTime() : date);
   const diff = Math.floor((now.getTime() - dateValue) / 1000);
 
   if (diff < 60) return "آخرین بازدید چند لحظه پیش";
@@ -51,13 +69,14 @@ function formatLastSeen(date: number | Date) {
   const days = Math.floor(diff / 86400);
   if (days === 1) return "دیروز";
   if (days < 7) return `${days} روز پیش`;
-  return new Date(date).toLocaleDateString("fa-IR");
+  return new Date(dateValue).toLocaleDateString("fa-IR");
 }
 
 export default function Dashboard() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userMetadata, setUserMetadata] = useState<UserMetadata | null>(null); // جدید
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [embedCode, setEmbedCode] = useState("");
@@ -72,9 +91,9 @@ export default function Dashboard() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [notificationPermission, setNotificationPermission] =
-    useState<NotificationPermission>("default");
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [showUserInfoMobile, setShowUserInfoMobile] = useState(false); // جدید برای موبایل
 
   const [currentUser, setCurrentUser] = useState<{
     fullName: string;
@@ -376,7 +395,7 @@ export default function Dashboard() {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [selectedRoom, loading, notificationPermission]);
+  }, [selectedRoom, loading, notificationPermission, users]);
 
   // بارگذاری کاربران
   const loadUsers = async (roomCode: string) => {
@@ -444,13 +463,25 @@ export default function Dashboard() {
     }
   };
 
-  // انتخاب کاربر
-  const handleUserSelect = (user: User | null) => {
-    if (!user) return;
+  // انتخاب کاربر (به‌روزرسانی‌شده با metadata)
+  const handleUserSelect = async (user: User | null) => {
+    if (!user || !selectedRoom) return;
     setSelectedUser(user);
-    loadMessages(selectedRoom!.room_code, user.session_id).then(() =>
-      setNewMessageAlert(false)
-    );
+    setShowUserInfoMobile(false); // ریست موبایل
+    await loadMessages(selectedRoom.room_code, user.session_id).then(() => setNewMessageAlert(false));
+
+    // بارگذاری metadata
+    try {
+      const res = await fetch(`/api/user-metadata?room=${selectedRoom.room_code}&session_id=${user.session_id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserMetadata(data);
+      } else {
+        setUserMetadata(null);
+      }
+    } catch {
+      setUserMetadata(null);
+    }
   };
 
   // ارسال/ویرایش پیام
@@ -533,6 +564,7 @@ export default function Dashboard() {
   const handleBack = () => {
     setSelectedUser(null);
     setMessages([]);
+    setUserMetadata(null);
   };
 
   // کاربر جاری
@@ -594,33 +626,50 @@ export default function Dashboard() {
       />
 
       <ErrorAlert error={error} setError={setError} />
-      <div className="max-w-12xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="flex justify-between items-start gap-4 max-lg:flex-col">
-          <UserList
-            users={users}
-            selectedUser={selectedUser}
-            setSelectedUser={handleUserSelect}
-            loadMessages={loadMessages}
-            darkMode={darkMode}
-            newMessageAlert={newMessageAlert}
-          />
-          <ChatArea
-            selectedUser={selectedUser}
-            messages={messages}
-            message={message}
-            setMessage={setMessage}
-            typingUsers={typingUsers}
-            sendMessage={sendMessage}
-            handleTyping={handleTyping}
-            darkMode={darkMode}
-            editingMessage={editingMessage}
-            setEditingMessage={setEditingMessage}
-            handleEdit={handleEdit}
-            handleDelete={handleDelete}
-          />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* لیست کاربران - ستون 1 */}
+          <div className="lg:col-span-3">
+            <UserList
+              users={users}
+              selectedUser={selectedUser}
+              setSelectedUser={handleUserSelect}
+              loadMessages={loadMessages}
+              darkMode={darkMode}
+              newMessageAlert={newMessageAlert}
+              selectedRoomCode={selectedRoom?.room_code}
+            />
+          </div>
+
+          {/* ناحیه چت - ستون 2 */}
+          <div className="lg:col-span-4">
+            <ChatArea
+              selectedUser={selectedUser}
+              messages={messages}
+              message={message}
+              setMessage={setMessage}
+              typingUsers={typingUsers}
+              sendMessage={sendMessage}
+              handleTyping={handleTyping}
+              darkMode={darkMode}
+              editingMessage={editingMessage}
+              setEditingMessage={setEditingMessage}
+              handleEdit={handleEdit}
+              handleDelete={handleDelete}
+              onUserInfoToggle={() => setShowUserInfoMobile(!showUserInfoMobile)} // جدید
+            />
+          </div>
+
+          {/* اطلاعات کاربر - ستون 3 (فقط دسکتاپ، وقتی کاربر انتخاب شده) */}
+          {selectedUser && (
+            <div className="hidden lg:block lg:col-span-5">
+              <UserInfoSidebar metadata={userMetadata} darkMode={darkMode} />
+            </div>
+          )}
         </div>
       </div>
 
+      {/* مودال موبایل چت */}
       <MobileChatModal
         selectedUser={selectedUser}
         messages={messages}
@@ -636,8 +685,12 @@ export default function Dashboard() {
         setEditingMessage={setEditingMessage}
         handleEdit={handleEdit}
         handleDelete={handleDelete}
+        userMetadata={userMetadata} // جدید
+        showUserInfo={showUserInfoMobile}
+        setShowUserInfo={setShowUserInfoMobile}
       />
 
+      {/* مودال‌های دیگر */}
       <CreateRoomModal
         showCreateRoom={showCreateRoom}
         setShowCreateRoom={setShowCreateRoom}
@@ -664,13 +717,8 @@ export default function Dashboard() {
 
       <style jsx global>{`
         @keyframes pulse {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.7;
-          }
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
         }
         [data-has-new-message-flash="true"] {
           animation: pulse 1.5s ease-in-out infinite;
