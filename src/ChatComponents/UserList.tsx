@@ -45,7 +45,7 @@ export default function UserList({
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="lg:col-span-1 space-y-6 w-3/12 max-lg:w-full"
+      className="lg:col-span-3 space-y-6 max-lg:w-full"
     >
       <div
         className={classNames(

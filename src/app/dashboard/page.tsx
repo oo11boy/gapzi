@@ -395,7 +395,7 @@ export default function Dashboard() {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [selectedRoom, loading, notificationPermission, users]);
+  }, [selectedRoom, loading, notificationPermission]);
 
   // بارگذاری کاربران
   const loadUsers = async (roomCode: string) => {
@@ -626,10 +626,9 @@ export default function Dashboard() {
       />
 
       <ErrorAlert error={error} setError={setError} />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* لیست کاربران - ستون 1 */}
-          <div className="lg:col-span-3">
+
             <UserList
               users={users}
               selectedUser={selectedUser}
@@ -639,10 +638,8 @@ export default function Dashboard() {
               newMessageAlert={newMessageAlert}
               selectedRoomCode={selectedRoom?.room_code}
             />
-          </div>
+    
 
-          {/* ناحیه چت - ستون 2 */}
-          <div className="lg:col-span-4">
             <ChatArea
               selectedUser={selectedUser}
               messages={messages}
@@ -658,15 +655,17 @@ export default function Dashboard() {
               handleDelete={handleDelete}
               onUserInfoToggle={() => setShowUserInfoMobile(!showUserInfoMobile)} // جدید
             />
+
+               {selectedUser && (
+       
+              <UserInfoSidebar metadata={userMetadata} darkMode={darkMode} />
+     
+          )}
           </div>
 
-          {/* اطلاعات کاربر - ستون 3 (فقط دسکتاپ، وقتی کاربر انتخاب شده) */}
-          {selectedUser && (
-            <div className="hidden lg:block lg:col-span-5">
-              <UserInfoSidebar metadata={userMetadata} darkMode={darkMode} />
-            </div>
-          )}
-        </div>
+     
+       
+
       </div>
 
       {/* مودال موبایل چت */}

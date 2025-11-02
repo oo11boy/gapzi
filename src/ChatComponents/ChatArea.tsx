@@ -74,7 +74,7 @@ export default function ChatArea({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3 }}
-      className="hidden lg:block lg:col-span-3 w-10/12"
+      className="hidden lg:block lg:col-span-6 "
     >
       <div
         className={classNames(

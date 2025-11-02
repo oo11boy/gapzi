@@ -21,54 +21,65 @@
   // متغیر برای ردیابی تعداد پیام‌های خوانده‌نشده
   let unreadCount = parseInt(localStorage.getItem(`unread_count_${room}`) || '0');
 
-  // تابع برای جمع‌آوری metadata
-  function collectMetadata() {
-    const userAgent = navigator.userAgent;
-    const referrer = document.referrer || 'مستقیم';
-    const currentPage = window.location.href;
-    const pageHistory = JSON.parse(localStorage.getItem(`page_history_${room}`) || '[]');
+// در تابع collectMetadata()
+function collectMetadata() {
+  const userAgent = navigator.userAgent;
+  const referrer = document.referrer || 'مستقیم';
+  const currentPage = window.location.href;
 
-    // تشخیص device type
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-    const isTablet = /iPad|Android(?!.*Mobile)|Tablet/i.test(userAgent);
-    let deviceType = 'desktop';
-    if (isMobile) deviceType = 'mobile';
-    else if (isTablet) deviceType = 'tablet';
+  // ---------- Page History ----------
+  let pageHistory = JSON.parse(localStorage.getItem(`page_history_${room}`) || '[]');
 
-    // تشخیص browser و OS (ساده‌سازی شده)
-    let browser = 'نامشخص';
-    let os = 'نامشخص';
-    if (userAgent.includes('Chrome')) browser = 'Chrome';
-    else if (userAgent.includes('Firefox')) browser = 'Firefox';
-    else if (userAgent.includes('Safari')) browser = 'Safari';
-    else if (userAgent.includes('Edge')) browser = 'Edge';
+  const now = Date.now();                     // زمان فعلی به میلی‌ثانیه
+  const last = pageHistory[pageHistory.length - 1];
 
-    if (userAgent.includes('Windows')) os = 'Windows';
-    else if (userAgent.includes('Mac')) os = 'macOS';
-    else if (userAgent.includes('Linux')) os = 'Linux';
-    else if (userAgent.includes('Android')) os = 'Android';
-    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
-
-    // به‌روزرسانی page history
-    const now = new Date().toISOString();
-    const lastPage = pageHistory[pageHistory.length - 1];
-    const duration = lastPage ? Math.floor((Date.now() - new Date(lastPage.timestamp).getTime()) / 1000) : 0;
-    if (lastPage) lastPage.duration = duration;
-
-    pageHistory.push({ url: currentPage, timestamp: now, duration: 0 });
-    localStorage.setItem(`page_history_${room}`, JSON.stringify(pageHistory.slice(-10))); // نگه‌داری 10 مورد آخر
-
-    return {
-      referrer,
-      current_page: currentPage,
-      page_history: pageHistory,
-      browser,
-      os,
-      device_type: deviceType,
-      user_agent: userAgent,
-      ip_address: '', // سرور اضافه می‌کند
-    };
+  // اگر صفحهٔ قبلی همان صفحهٔ فعلی است → زمان را افزایش بده
+  if (last && last.url === currentPage) {
+    last.duration = Math.floor((now - new Date(last.timestamp).getTime()) / 1000);
+  } else {
+    // صفحهٔ جدید → زمان قبلی را نهایی کن و آیتم جدید اضافه کن
+    if (last) {
+      last.duration = Math.floor((now - new Date(last.timestamp).getTime()) / 1000);
+    }
+    pageHistory.push({ url: currentPage, timestamp: new Date().toISOString(), duration: 0 });
   }
+
+  // فقط 10 آیتم آخر را نگه‌دار
+  if (pageHistory.length > 10) pageHistory = pageHistory.slice(-10);
+  localStorage.setItem(`page_history_${room}`, JSON.stringify(pageHistory));
+  // -----------------------------------------
+
+  // بقیه متادیتا …
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isTablet = /iPad|Android(?!.*Mobile)|Tablet/i.test(userAgent);
+  let deviceType = 'desktop';
+  if (isMobile) deviceType = 'mobile';
+  else if (isTablet) deviceType = 'tablet';
+
+  let browser = 'نامشخص';
+  let os = 'نامشخص';
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+
+  if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+
+  return {
+    referrer,
+    current_page: currentPage,
+    page_history: pageHistory,          // آرایهٔ به‌روز شده
+    browser,
+    os,
+    device_type: deviceType,
+    user_agent: userAgent,
+    ip_address: '',
+  };
+}
 
   // تابع برای ارسال metadata به سرور
   async function sendMetadata(name, email) {
@@ -85,17 +96,35 @@
     }
   }
 
-  // تابع برای به‌روزرسانی page tracking هر 30 ثانیه
-  function startPageTracking() {
-    setInterval(() => {
-      const metadata = collectMetadata();
-      fetch('http://localhost:3000/api/user-metadata/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room, session_id: sessionId, current_page: metadata.current_page, page_history: metadata.page_history }),
-      }).catch(console.error);
-    }, 30000);
-  }
+function startPageTracking() {
+  // اولین بار بلافاصله بفرست (برای ثبت صفحهٔ اولیه)
+  const metadata = collectMetadata();
+  fetch('http://localhost:3000/api/user-metadata/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      room,
+      session_id: sessionId,
+      current_page: metadata.current_page,
+      page_history: metadata.page_history,
+    }),
+  }).catch(console.error);
+
+  // سپس هر 30 ثانیه
+  setInterval(() => {
+    const metadata = collectMetadata();
+    fetch('http://localhost:3000/api/user-metadata/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room,
+        session_id: sessionId,
+        current_page: metadata.current_page,
+        page_history: metadata.page_history,
+      }),
+    }).catch(console.error);
+  }, 30000);
+}
 
   // تابع برای دریافت تنظیمات ویجت از سرور
   async function fetchWidgetSettings() {
