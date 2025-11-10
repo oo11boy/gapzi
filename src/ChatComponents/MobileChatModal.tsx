@@ -4,6 +4,7 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { classNames } from "./utils/classNames";
 import { useEffect, useState, useRef } from "react";
 import UserInfoSidebar from "./UserInfoSidebar"; // جدید
+import { formatLastSeen } from "@/client/utils/formatLastSeen";
 
 interface User {
   session_id: string;
@@ -84,14 +85,6 @@ export default function MobileChatModal({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const formatLastActive = (lastActive?: string) => {
-    if (!lastActive) return "نامشخص";
-    const date = new Date(lastActive);
-    return date.toLocaleString("fa-IR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
 
   // لمس طولانی برای نمایش دکمه‌ها
   const handleLongPress = (messageId: string) => {
@@ -156,7 +149,7 @@ export default function MobileChatModal({
                 </motion.button>
 
                 <div 
-                  className="relative w-10 h-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center flex-shrink-0"
+                  className="relative w-10 h-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center shrink-0"
                   onClick={() => setShowUserInfo(!showUserInfo)} // کلیک برای toggle
                   role="button"
                   tabIndex={0}
@@ -183,10 +176,10 @@ export default function MobileChatModal({
                       selectedUser.isOnline ? "text-green-500" : "text-gray-500"
                     )}
                   >
-                    {selectedUser.isOnline
-                      ? "آنلاین"
-                      : `آخرین بازدید: ${formatLastActive(selectedUser.last_active)}`}
-                  </p>
+                {selectedUser.isOnline
+    ? "آنلاین"
+    : `آخرین بازدید: ${formatLastSeen(selectedUser.last_active)}`}
+                      </p>
                 </div>
               </div>
 
@@ -256,7 +249,7 @@ export default function MobileChatModal({
                           className={classNames(
                             "relative flex flex-col max-w-[75%] p-3 rounded-2xl",
                             isSender
-                              ? "self-end rounded-br-none shadow-md bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                              ? "self-end rounded-br-none shadow-md bg-linear-to-r from-blue-500 to-blue-600 text-white"
                               : darkMode
                               ? "self-start rounded-bl-none shadow-md bg-gray-800 text-gray-200"
                               : "self-start rounded-bl-none shadow-md bg-gray-100 text-gray-900"
@@ -268,7 +261,7 @@ export default function MobileChatModal({
                           onMouseLeave={handleTouchEnd}
                         >
                           <div className="flex items-start gap-2">
-                            <p className="text-sm leading-relaxed flex-1 break-words">
+                            <p className="text-sm leading-relaxed flex-1 wrap-break-word">
                               {msg.message}
                             </p>
 

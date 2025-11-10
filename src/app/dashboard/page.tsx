@@ -30,7 +30,7 @@ interface User {
   last_active?: string;
   isOnline?: boolean;
   hasNewMessageFlash?: boolean;
-  last_seen_text?: string;
+
 }
 
 interface Message {
@@ -57,20 +57,6 @@ interface UserMetadata {
   ip_address?: string;
 }
 
-function formatLastSeen(date: number | Date | string) {
-  const now = new Date();
-  const dateValue = typeof date === 'string' ? new Date(date).getTime() : (date instanceof Date ? date.getTime() : date);
-  const diff = Math.floor((now.getTime() - dateValue) / 1000);
-
-  if (diff < 60) return "آخرین بازدید چند لحظه پیش";
-  if (diff < 3600) return `آخرین بازدید ${Math.floor(diff / 60)} دقیقه پیش`;
-  if (diff < 86400) return `آخرین بازدید ${Math.floor(diff / 3600)} ساعت پیش`;
-
-  const days = Math.floor(diff / 86400);
-  if (days === 1) return "دیروز";
-  if (days < 7) return `${days} روز پیش`;
-  return new Date(dateValue).toLocaleDateString("fa-IR");
-}
 
 export default function Dashboard() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -636,8 +622,7 @@ export default function Dashboard() {
               loadMessages={loadMessages}
               darkMode={darkMode}
               newMessageAlert={newMessageAlert}
-              selectedRoomCode={selectedRoom?.room_code}
-            />
+              />
     
 
             <ChatArea
@@ -653,8 +638,7 @@ export default function Dashboard() {
               setEditingMessage={setEditingMessage}
               handleEdit={handleEdit}
               handleDelete={handleDelete}
-              onUserInfoToggle={() => setShowUserInfoMobile(!showUserInfoMobile)} // جدید
-            />
+              />
 
                {selectedUser && (
        

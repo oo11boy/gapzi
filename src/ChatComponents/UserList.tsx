@@ -2,6 +2,7 @@
 import { motion } from 'framer-motion';
 import { classNames } from './utils/classNames';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
+import { formatLastSeen } from '@/client/utils/formatLastSeen';
 
 interface User {
   session_id: string;
@@ -12,7 +13,7 @@ interface User {
   last_active?: string;
   isOnline?: boolean;
   hasNewMessageFlash?: boolean;
-  last_seen_text?: string; // از API جدید
+
 }
 
 interface UserListProps {
@@ -124,7 +125,10 @@ export default function UserList({
   'text-xs font-medium transition-colors duration-200',
   user.isOnline ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'
 )}>
-  {user.last_seen_text || (user.isOnline ? 'آنلاین' : 'نامشخص')}
+{user.isOnline 
+    ? 'آنلاین' 
+    : formatLastSeen(user.last_active)
+  }
 </p>
                   </div>
                 </div>

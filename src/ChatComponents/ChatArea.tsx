@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { classNames } from './utils/classNames';
+import { formatLastSeen } from '@/client/utils/formatLastSeen';
 
 interface User {
   session_id: string;
@@ -60,14 +61,7 @@ export default function ChatArea({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const formatLastActive = (lastActive?: string) => {
-    if (!lastActive) return 'نامشخص';
-    const date = new Date(lastActive);
-    return date.toLocaleTimeString('fa-IR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+
 
   return (
     <motion.div
@@ -110,7 +104,10 @@ export default function ChatArea({
                     selectedUser.isOnline ? 'text-green-500' : 'text-gray-500'
                   )}
                 >
-                  {selectedUser.isOnline ? 'آنلاین' : `آخرین بازدید: ${formatLastActive(selectedUser.last_active)}`}
+                 {selectedUser.isOnline 
+    ? 'آنلاین' 
+    : `آخرین بازدید: ${formatLastSeen(selectedUser.last_active)}`
+  }
                 </p>
               </div>
             </div>

@@ -1,3 +1,4 @@
+// server.js
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const next = require('next');
@@ -19,9 +20,9 @@ const pool = mysql.createPool({
   timezone: '+00:00',
 });
 
-// نقشه‌ای برای نگه داشتن کاربران آنلاین (مثل تلگرام)
-const onlineUsers = new Map(); // <session_id, socketCount>
-const adminStatus = new Map(); // <room:adminId, timestamp>
+// نقشه کاربران آنلاین: session_id → تعداد اتصالات
+const onlineUsers = new Map(); // <session_id, connectionCount>
+const adminStatus = new Map(); // <room:adminId, lastPing>
 
 app.prepare().then(() => {
   const server = createServer(handle);
@@ -34,8 +35,9 @@ app.prepare().then(() => {
   io.on('connection', (socket) => {
     let userRoom = null;
     let userSession = null;
+    let activityInterval = null;
 
-    // 🟢 کاربر وارد شد
+    // کاربر وارد جلسه شد
     socket.on('join_session', async ({ room, session_id }) => {
       if (!room || !session_id) return;
       userRoom = room;
@@ -51,28 +53,44 @@ app.prepare().then(() => {
         if (!rows.length) return socket.emit('error', 'Invalid room');
         const roomId = rows[0].id;
 
-        // ثبت آخرین فعالیت
-        await pool.execute('UPDATE user_sessions SET last_active = NOW() WHERE room_id = ? AND session_id = ?', [
-          roomId,
-          session_id,
-        ]);
+        // ثبت/آپدیت آخرین فعالیت
+        await pool.execute(
+          'INSERT INTO user_sessions (room_id, session_id, last_active) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE last_active = NOW()',
+          [roomId, session_id]
+        );
 
-        // بروزرسانی در حافظه
-        const count = onlineUsers.get(session_id) || 0;
-        onlineUsers.set(session_id, count + 1);
+        // افزایش تعداد اتصالات
+        const count = (onlineUsers.get(session_id) || 0) + 1;
+        onlineUsers.set(session_id, count);
 
-        // اطلاع به ادمین‌ها
+        // پینگ دوره‌ای برای به‌روزرسانی last_active (هر 25 ثانیه)
+        activityInterval = setInterval(async () => {
+          try {
+            await pool.execute(
+              'UPDATE user_sessions SET last_active = NOW() WHERE room_id = ? AND session_id = ?',
+              [roomId, session_id]
+            );
+          } catch (err) {
+            console.error('Activity ping failed:', err);
+          }
+        }, 25000);
+
+        // ذخیره interval برای پاک کردن در disconnect
+        socket.data.activityInterval = activityInterval;
+
+        // اطلاع به ادمین: کاربر آنلاین است
         io.to(room).emit('user_status', {
           session_id,
           isOnline: true,
           last_active: new Date().toISOString(),
         });
+
       } catch (err) {
         console.error('Error in join_session:', err);
       }
     });
 
-    // 💬 ارسال پیام
+    // ارسال پیام
     socket.on('send_message', async (data) => {
       if (!userRoom || !data.message?.trim()) return;
 
@@ -90,139 +108,155 @@ app.prepare().then(() => {
           [messageId, roomId, sessionIdToUse, sender_type, message, timestamp || new Date().toISOString()]
         );
 
-        await pool.execute('UPDATE user_sessions SET last_active = NOW() WHERE session_id = ?', [sessionIdToUse]);
+        // آپدیت last_active
+        await pool.execute('UPDATE user_sessions_user_sessions SET last_active = NOW() WHERE session_id = ?', [sessionIdToUse]);
 
         const msg = {
           ...data,
           message_id: messageId,
-          room_id: roomId,
           room: userRoom,
           session_id: sessionIdToUse,
           timestamp: timestamp || new Date().toISOString(),
         };
 
         socket.emit('receive_message', msg);
-        if (sender_type === 'admin') io.to(`${userRoom}:${sessionIdToUse}`).emit('receive_message', msg);
-        else io.to(userRoom).emit('receive_message', msg);
+        if (sender_type === 'admin') {
+          io.to(`${userRoom}:${sessionIdToUse}`).emit('receive_message', msg);
+        } else {
+          io.to(userRoom).emit('receive_message', msg);
+        }
       } catch (err) {
         console.error('Error in send_message:', err);
       }
     });
 
-    // ⌨️ در حال تایپ
+    // در حال تایپ
     socket.on('user_typing', ({ name }) => {
-      if (userRoom && userSession)
-        socket.to(userRoom).except(`${userRoom}:${userSession}`).emit('user_typing', { name, session_id: userSession });
+      if (userRoom && userSession) {
+        socket.to(userRoom).except(`${userRoom}:${userSession}`).emit('user_typing', {
+          name,
+          session_id: userSession,
+        });
+      }
     });
 
-    // 🧑‍💼 ادمین آنلاین شد
-socket.on('admin_connect', ({ room, adminId }) => {
-  adminStatus.set(`${room}:${adminId}`, Date.now());
-  io.to(room).emit('admin_status', { isOnline: true }); // به همه کاربران ویجت
-});
+    // فعالیت دستی کاربر (از ویجت)
+    socket.on('user_activity', async ({ room, session_id }) => {
+      if (!room || !session_id) return;
+      try {
+        const [rows] = await pool.execute('SELECT id FROM chat_rooms WHERE room_code = ?', [room]);
+        if (rows.length > 0) {
+          await pool.execute(
+            'UPDATE user_sessions SET last_active = NOW() WHERE room_id = ? AND session_id = ?',
+            [rows[0].id, session_id]
+          );
+        }
+      } catch (err) {
+        console.error('user_activity error:', err);
+      }
+    });
 
-// در فایل server.ts
-socket.on('disconnect', async () => {
-  if (!userRoom || !userSession) return;
+    // ادمین متصل شد
+    socket.on('admin_connect', ({ room, adminId }) => {
+      adminStatus.set(`${room}:${adminId}`, Date.now());
+      io.to(room).emit('admin_status', { isOnline: true });
+    });
 
-  try {
-    const count = (onlineUsers.get(userSession) || 1) - 1;
+    // ویرایش پیام
+    socket.on('edit_message', async (data) => {
+      const { message_id, message, room, session_id } = data;
+      if (!message_id || !message || !room || !session_id) {
+        return socket.emit('error', 'Invalid edit data');
+      }
 
-    if (count <= 0) {
-      onlineUsers.delete(userSession);
-
-      const [rows] = await pool.execute('SELECT id FROM chat_rooms WHERE room_code = ?', [userRoom]);
-      if (rows.length > 0) {
-        const roomId = rows[0].id;
-
-        // همیشه last_active را آپدیت کن (حتی اگر قبلاً آپدیت شده)
-        await pool.execute(
-          'UPDATE user_sessions SET last_active = NOW() WHERE room_id = ? AND session_id = ?',
-          [roomId, userSession]
+      try {
+        const [result] = await pool.execute(
+          'UPDATE messages SET message = ?, edited = 1, updated_at = NOW() WHERE message_id = ?',
+          [message, message_id]
         );
 
-        const offlineTime = new Date().toISOString();
+        if (result.affectedRows === 0) {
+          return socket.emit('error', 'Message not found');
+        }
 
-        // اطلاع فوری به ادمین‌ها
-        io.to(userRoom).emit('user_status', {
-          session_id: userSession,
-          isOnline: false,
-          last_active: offlineTime,
-        });
+        const [rows] = await pool.execute('SELECT created_at FROM messages WHERE message_id = ?', [message_id]);
+        const originalTimestamp = rows[0]?.created_at || new Date().toISOString();
 
-        console.log(`User ${userSession} went offline at ${offlineTime}`);
+        const editData = {
+          message_id,
+          message,
+          edited: true,
+          timestamp: originalTimestamp,
+          edited_at: new Date().toISOString(),
+          room,
+          session_id,
+        };
+
+        io.to(room).emit('message_edited', editData);
+        io.to(`${room}:${session_id}`).emit('message_edited', editData);
+      } catch (err) {
+        console.error('Edit error:', err);
+        socket.emit('error', 'Failed to edit message');
       }
-    } else {
-      onlineUsers.set(userSession, count);
-    }
-  } catch (err) {
-    console.error('Error on disconnect:', err);
-  }
-});
-// در socket.on('edit_message')
-socket.on('edit_message', async (data) => {
-  const { message_id, message, room, session_id } = data;
+    });
 
-  if (!message_id || !message || !room || !session_id) {
-    return socket.emit('error', 'Invalid edit data');
-  }
+    // حذف پیام
+    socket.on('delete_message', async ({ message_id, room }) => {
+      try {
+        await pool.execute('DELETE FROM messages WHERE message_id = ?', [message_id]);
+        io.to(room).emit('message_deleted', { message_id });
+      } catch (err) {
+        console.error('Delete error:', err);
+      }
+    });
 
-  try {
-    // 1. آپدیت در دیتابیس
-    const [result] = await pool.execute(
-      'UPDATE messages SET message = ?, edited = 1, updated_at = NOW() WHERE message_id = ?',
-      [message, message_id]
-    );
+    // قطع اتصال
+    socket.on('disconnect', async () => {
+      if (!userRoom || !userSession) return;
 
-    if (result.affectedRows === 0) {
-      return socket.emit('error', 'Message not found');
-    }
+      // پاک کردن interval
+      if (socket.data.activityInterval) {
+        clearInterval(socket.data.activityInterval);
+      }
 
-    // 2. گرفتن زمان اصلی پیام (created_at)
-    const [rows] = await pool.execute(
-      'SELECT created_at FROM messages WHERE message_id = ?',
-      [message_id]
-    );
-    const originalTimestamp = rows[0]?.created_at || new Date().toISOString();
+      try {
+        const count = (onlineUsers.get(userSession) || 1) - 1;
 
-    // 3. دیتای کامل برای ارسال
-    const editData = {
-      message_id,
-      message,
-      edited: true,
-      timestamp: originalTimestamp,         // زمان اصلی ارسال
-      edited_at: new Date().toISOString(),  // زمان ویرایش
-      room,
-      session_id,
-    };
+        if (count <= 0) {
+          onlineUsers.delete(userSession);
 
-    // 4. ارسال به همه: ادمین + کاربر ویجت
-    io.to(room).emit('message_edited', editData);                    // ادمین‌ها
-    io.to(`${room}:${session_id}`).emit('message_edited', editData); // کاربر ویجت
+          const [rows] = await pool.execute('SELECT id FROM chat_rooms WHERE room_code = ?', [userRoom]);
+          if (rows.length > 0) {
+            const roomId = rows[0].id;
+            const offlineTime = new Date().toISOString();
 
-  } catch (err) {
-    console.error('Edit error:', err);
-    socket.emit('error', 'Failed to edit message');
-  }
-});
+            await pool.execute(
+              'UPDATE user_sessions SET last_active = ? WHERE room_id = ? AND session_id = ?',
+              [offlineTime, roomId, userSession]
+            );
 
+            io.to(userRoom).emit('user_status', {
+              session_id: userSession,
+              isOnline: false,
+              last_active: offlineTime,
+            });
 
-socket.on('delete_message', async ({ message_id, room }) => {
-  try {
-    await pool.execute('DELETE FROM messages WHERE message_id = ?', [message_id]);
-    io.to(room).emit('message_deleted', { message_id });
-  } catch (err) {
-    console.error('Delete error:', err);
-  }
-});
-
+            console.log(`User ${userSession} went OFFLINE at ${offlineTime}`);
+          }
+        } else {
+          onlineUsers.set(userSession, count);
+        }
+      } catch (err) {
+        console.error('Disconnect error:', err);
+      }
+    });
   });
 
-  // بررسی وضعیت ادمین‌ها (هر 30 ثانیه)
+  // بررسی وضعیت ادمین‌ها هر 30 ثانیه
   setInterval(() => {
     const now = Date.now();
     for (const [key, time] of adminStatus.entries()) {
-      if (now - time > 600000) {
+      if (now - time > 600000) { // 10 دقیقه
         const [room] = key.split(':');
         adminStatus.delete(key);
         io.to(room).emit('admin_status', { isOnline: false });
@@ -230,5 +264,9 @@ socket.on('delete_message', async ({ message_id, room }) => {
     }
   }, 30000);
 
-  server.listen(3000, () => console.log('🚀 Server running on http://localhost:3000'));
+  const port = 3000;
+  server.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+
+  });
 });
