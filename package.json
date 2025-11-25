@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "node server.js",
+  "build": "next build && copyfiles -f server.js .next/standalone/",
+   "start": "node server.js",
     "lint": "next lint"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
     "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "framer-motion": "^12.23.24",
     "jsonwebtoken": "^9.0.2",
@@ -32,6 +33,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "copyfiles": "^2.4.1",
     "eslint": "^9",
     "eslint-config-next": "15.4.7",
     "tailwindcss": "^4",
