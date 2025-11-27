@@ -95,7 +95,7 @@ app.prepare().then(() => {
   const io = new Server(server, {
     path: "/socket.io",
     cors: {
-      origin: dev ? "http://localhost:3000" : "*",
+      origin: dev ? "*" : "*",
       methods: ["GET", "POST"],
     },
     pingTimeout: 25000,

@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       site_url,
     ]);
 
-    const embedCode = `<script src="http://localhost:3000/chat-widget.js?room=${roomCode}"></script>`;
+    const embedCode = `<script src="${process.env.NEXT_PUBLIC_BASE_URL}/chat-widget.js?room=${roomCode}"></script>`;
 
     return NextResponse.json({ embedCode, roomCode }, { status: 201 });
   } catch (error) {

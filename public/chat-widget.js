@@ -85,7 +85,7 @@ function collectMetadata() {
   async function sendMetadata(name, email) {
     const metadata = collectMetadata();
     try {
-      await fetch('http://localhost:3000/api/user-metadata', {
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/user-metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room, session_id: sessionId, name, email, metadata }),
@@ -99,7 +99,7 @@ function collectMetadata() {
 function startPageTracking() {
   // اولین بار بلافاصله بفرست (برای ثبت صفحهٔ اولیه)
   const metadata = collectMetadata();
-  fetch('http://localhost:3000/api/user-metadata/update', {
+  fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/user-metadata/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -113,7 +113,7 @@ function startPageTracking() {
   // سپس هر 30 ثانیه
   setInterval(() => {
     const metadata = collectMetadata();
-    fetch('http://localhost:3000/api/user-metadata/update', {
+    fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/user-metadata/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -129,7 +129,7 @@ function startPageTracking() {
   // تابع برای دریافت تنظیمات ویجت از سرور
   async function fetchWidgetSettings() {
     try {
-      const response = await fetch(`http://localhost:3000/api/widget-settings?room=${room}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/widget-settings?room=${room}`, {
         headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) throw new Error(`HTTP error ${response.status}`);
@@ -531,7 +531,7 @@ function startPageTracking() {
     // تابع برای به‌روزرسانی وضعیت ادمین
     async function updateAdminStatus() {
       try {
-        const response = await fetch(`http://localhost:3000/api/users?room=${room}&widget=true`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users?room=${room}&widget=true`);
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
 
@@ -614,7 +614,7 @@ function startPageTracking() {
       });
 
       // بارگذاری پیام‌های قبلی
-      fetch(`http://localhost:3000/api/messages?room=${room}&session_id=${sessionId}`)
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/messages?room=${room}&session_id=${sessionId}`)
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           return res.json();
@@ -656,7 +656,7 @@ function startPageTracking() {
 
       function setupSocket() {
         if (!window.chatSocket) {
-          window.chatSocket = io('http://localhost:3000', {
+          window.chatSocket = io(`${process.env.NEXT_PUBLIC_BASE_URL}`, {
             transports: ['websocket', 'polling'],
             timeout: 20000,
           });
@@ -800,7 +800,7 @@ function startPageTracking() {
         startPageTracking();
 
         try {
-          const res = await fetch('http://localhost:3000/api/user-session', {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/user-session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room, session_id: sessionId, name, email }),
